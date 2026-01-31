@@ -38,12 +38,15 @@ if (!defined('ABSPATH')) {
                 </a>
                 <?php
                 $account_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/my-account/');
+                $login_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : wp_login_url();
                 $cart_url = function_exists('wc_get_cart_url') ? wc_get_cart_url() : home_url('/cart/');
                 $cart_count = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_contents_count() : 0;
+                $avatar_url = is_user_logged_in() ? custom_woocommerce_get_user_avatar_url(get_current_user_id()) : get_avatar_url(0, ['size' => 48]);
+                $avatar_link = is_user_logged_in() ? $account_url : $login_url;
                 ?>
-                <a class="header-link" href="<?php echo esc_url($account_url); ?>">
-                    <span class="icon">👤</span>
-                    <?php esc_html_e('Account', 'custom-woocommerce'); ?>
+                <a class="header-avatar" href="<?php echo esc_url($avatar_link); ?>">
+                    <span class="screen-reader-text"><?php esc_html_e('My Account', 'custom-woocommerce'); ?></span>
+                    <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php esc_attr_e('Profile', 'custom-woocommerce'); ?>">
                 </a>
                 <a class="header-link cart-link" href="<?php echo esc_url($cart_url); ?>">
                     <span class="icon">🛒</span>

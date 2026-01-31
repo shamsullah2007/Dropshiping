@@ -9,7 +9,17 @@ if (!defined('ABSPATH')) {
 <nav class="cw-account-nav" aria-label="<?php esc_attr_e('My Account', 'custom-woocommerce'); ?>">
     <div class="cw-account-card">
         <div class="cw-account-header"></div>
-        <div class="cw-account-avatar" aria-hidden="true"></div>
+        <?php
+        $user_id = get_current_user_id();
+        $avatar_url = $user_id ? custom_woocommerce_get_user_avatar_url($user_id) : '';
+        ?>
+        <form class="cw-avatar-form" method="post" enctype="multipart/form-data">
+            <?php wp_nonce_field('cw_avatar_upload', 'cw_avatar_nonce'); ?>
+            <label class="cw-account-avatar" for="cw-profile-avatar" style="background-image: url('<?php echo esc_url($avatar_url); ?>');">
+                <span class="cw-avatar-overlay">+</span>
+            </label>
+            <input type="file" id="cw-profile-avatar" name="cw_profile_avatar" accept="image/*" aria-label="<?php esc_attr_e('Upload profile picture', 'custom-woocommerce'); ?>">
+        </form>
         <?php
         wp_nav_menu([
             'theme_location' => 'myaccount',

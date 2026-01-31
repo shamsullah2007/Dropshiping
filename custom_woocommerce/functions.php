@@ -86,6 +86,54 @@ function custom_woocommerce_enqueue_assets()
 }
 add_action('wp_enqueue_scripts', 'custom_woocommerce_enqueue_assets');
 
+function custom_woocommerce_get_user_avatar_url($user_id)
+{
+    $avatar_id = (int) get_user_meta($user_id, 'cw_profile_avatar_id', true);
+    if ($avatar_id) {
+        $url = wp_get_attachment_image_url($avatar_id, 'thumbnail');
+        if ($url) {
+            return $url;
+        }
+    }
+    return get_avatar_url($user_id, ['size' => 96]);
+}
+
+function custom_woocommerce_handle_avatar_upload()
+{
+    if (!is_user_logged_in() || !is_account_page()) {
+        return;
+    }
+
+    if (!isset($_POST['cw_avatar_nonce'])) {
+        return;
+    }
+
+    if (!wp_verify_nonce($_POST['cw_avatar_nonce'], 'cw_avatar_upload')) {
+        return;
+    }
+
+    if (!current_user_can('read')) {
+        return;
+    }
+
+    if (empty($_FILES['cw_profile_avatar']['name'])) {
+        return;
+    }
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+
+    $user_id = get_current_user_id();
+    $attachment_id = media_handle_upload('cw_profile_avatar', 0);
+    if (!is_wp_error($attachment_id)) {
+        update_user_meta($user_id, 'cw_profile_avatar_id', (int) $attachment_id);
+        wp_safe_redirect(wc_get_account_endpoint_url('dashboard'));
+        exit;
+    }
+}
+add_action('template_redirect', 'custom_woocommerce_handle_avatar_upload');
+
 function custom_woocommerce_add_product_form_shortcode()
 {
     if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {

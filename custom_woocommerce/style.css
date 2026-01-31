@@ -178,6 +178,24 @@ a:hover {
     background: #fff;
 }
 
+.header-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid rgba(15, 23, 42, 0.12);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+}
+
+.header-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .header-link .icon {
     font-size: 1rem;
 }
@@ -407,15 +425,42 @@ a:hover {
 }
 
 .cw-account-avatar {
-    width: 64px;
-    height: 64px;
-    border-radius: 16px;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
     background: #1f7aec;
     border: 4px solid rgba(255, 255, 255, 0.7);
     box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
     position: absolute;
     top: 50px;
     left: 20px;
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cw-avatar-form input[type="file"] {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+
+.cw-avatar-overlay {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.75);
+    color: #fff;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 14px rgba(0, 0, 0, 0.3);
 }
 
 .cw-account-menu {
