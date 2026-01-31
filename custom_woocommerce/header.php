@@ -74,7 +74,7 @@ if (!defined('ABSPATH')) {
                     'theme_location' => 'primary',
                     'menu_class' => 'menu nav-menu',
                     'container' => false,
-                    'fallback_cb' => '__return_false',
+                    'fallback_cb' => 'custom_woocommerce_primary_menu_fallback',
                 ]);
                 ?>
             </nav>

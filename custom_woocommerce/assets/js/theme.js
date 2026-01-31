@@ -298,6 +298,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // Make uploadedImages and currentSelectedIndex accessible globally for showBulkForm
+    window.uploadedImages = uploadedImages;
+    window.currentSelectedIndex = currentSelectedIndex;
 });
 
 // Global categories cache
@@ -336,9 +340,13 @@ function generateCategoryOptions(selectedCategory = '') {
 
 function showBulkForm(index) {
     const bulkFormsContainer = document.getElementById('bulkFormsContainer');
+    const uploadedImages = window.uploadedImages || [];
     const imageData = uploadedImages.find(img => img.index === index);
 
-    if (!imageData) return;
+    if (!imageData) {
+        console.log('No image data found for index:', index);
+        return;
+    }
 
     // Update active state on preview
     document.querySelectorAll('.bulk-image-item').forEach(item => {
@@ -348,7 +356,7 @@ function showBulkForm(index) {
 
     // Clear previous form
     bulkFormsContainer.innerHTML = '';
-    currentSelectedIndex = index;
+    window.currentSelectedIndex = index;
 
     // Create and show form for this image
     const formDiv = document.createElement('div');

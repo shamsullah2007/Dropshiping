@@ -109,6 +109,42 @@ function custom_woocommerce_widgets_init()
 }
 add_action('widgets_init', 'custom_woocommerce_widgets_init');
 
+// Fallback primary menu with Shop and Checkout links
+function custom_woocommerce_primary_menu_fallback() {
+    $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/shop/');
+    $checkout_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('checkout') : home_url('/checkout/');
+    
+    echo '<ul class="menu nav-menu">';
+    echo '<li class="menu-item"><a href="' . esc_url(home_url('/')) . '">' . esc_html__('Home', 'custom-woocommerce') . '</a></li>';
+    echo '<li class="menu-item"><a href="' . esc_url($shop_url) . '">' . esc_html__('Shop', 'custom-woocommerce') . '</a></li>';
+    echo '<li class="menu-item"><a href="' . esc_url($checkout_url) . '">' . esc_html__('Checkout', 'custom-woocommerce') . '</a></li>';
+    echo '</ul>';
+}
+
+// Add Shop and Checkout links to the primary menu
+add_filter('wp_nav_menu_items', 'custom_woocommerce_add_shop_checkout_to_menu', 10, 2);
+function custom_woocommerce_add_shop_checkout_to_menu($items, $args) {
+    // Only add to primary menu
+    if ($args->theme_location !== 'primary') {
+        return $items;
+    }
+    
+    $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/shop/');
+    $checkout_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('checkout') : home_url('/checkout/');
+    
+    // Check if we're on shop or checkout page for active state
+    $shop_active = (function_exists('is_shop') && is_shop()) || is_page('shop') ? 'current-menu-item' : '';
+    $checkout_active = (function_exists('is_checkout') && is_checkout()) || is_page('checkout') ? 'current-menu-item' : '';
+    
+    // Add Shop link at the beginning
+    $shop_link = '<li class="menu-item ' . $shop_active . '"><a href="' . esc_url($shop_url) . '">' . esc_html__('Shop', 'custom-woocommerce') . '</a></li>';
+    
+    // Add Checkout link at the end
+    $checkout_link = '<li class="menu-item ' . $checkout_active . '"><a href="' . esc_url($checkout_url) . '">' . esc_html__('Checkout', 'custom-woocommerce') . '</a></li>';
+    
+    return $shop_link . $items . $checkout_link;
+}
+
 function custom_woocommerce_enqueue_assets()
 {
     wp_enqueue_style('custom-woocommerce-style', get_stylesheet_uri(), [], '1.0.0');
