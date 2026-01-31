@@ -39,5 +39,6 @@ if (!defined('ABSPATH')) {
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
+        <div class="cw-account-panel"></div>
     </div>
 </nav>

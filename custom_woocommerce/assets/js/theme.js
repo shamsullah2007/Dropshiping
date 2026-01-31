@@ -43,4 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    const accountPanel = document.querySelector('.cw-account-panel');
+    const accountContent = document.querySelector('.woocommerce-MyAccount-content');
+    if (accountPanel && accountContent) {
+        accountPanel.appendChild(accountContent);
+        accountContent.classList.add('cw-account-content');
+    }
 });
