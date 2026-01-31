@@ -31,6 +31,7 @@ function custom_woocommerce_theme_setup()
     register_nav_menus([
         'primary' => __('Primary Menu', 'custom-woocommerce'),
         'footer' => __('Footer Menu', 'custom-woocommerce'),
+        'myaccount' => __('My Account Menu', 'custom-woocommerce'),
     ]);
 }
 add_action('after_setup_theme', 'custom_woocommerce_theme_setup');
