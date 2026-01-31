@@ -292,15 +292,47 @@ document.addEventListener('DOMContentLoaded', () => {
                         bulkAddAllBtn.disabled = false;
                         bulkAddAllBtn.textContent = 'Add All Products';
                         alert('Products added successfully!');
-                        bulkImagesInput.value = '';
-                        bulkImagesPreview.innerHTML = '';
-                        bulkFormsContainer.innerHTML = '';
+                        location.reload();
                     }
                 });
             });
         });
     }
 });
+
+// Global categories cache
+let productCategories = [];
+
+// Load categories on page load
+function loadProductCategories() {
+    fetch(ajaxurl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            action: 'cw_get_categories'
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                productCategories = data.data;
+            }
+        });
+}
+
+// Call on page load
+if (typeof ajaxurl !== 'undefined') {
+    loadProductCategories();
+}
+
+function generateCategoryOptions(selectedCategory = '') {
+    let options = '<option value="">Select a category</option>';
+    productCategories.forEach(cat => {
+        const selected = cat.name === selectedCategory ? ' selected' : '';
+        options += `<option value="${cat.name}"${selected}>${cat.name}</option>`;
+    });
+    return options;
+}
 
 function showBulkForm(index) {
     const bulkFormsContainer = document.getElementById('bulkFormsContainer');
@@ -340,7 +372,9 @@ function showBulkForm(index) {
         </div>
         <div class="form-group">
             <label for="cw_product_category_${index}">Category</label>
-            <input type="text" name="cw_product_category" id="cw_product_category_${index}">
+            <select name="cw_product_category" id="cw_product_category_${index}">
+                ${generateCategoryOptions()}
+            </select>
         </div>
         <div class="form-group">
             <label for="cw_product_description_${index}">Description</label>
@@ -390,7 +424,9 @@ function loadProductForEdit(productId) {
                     <input type="text" id="edit-product-sku" name="product_sku" value="${product.sku}">
                     
                     <label for="edit-product-category">Category</label>
-                    <input type="text" id="edit-product-category" name="product_category" value="${product.category}">
+                    <select id="edit-product-category" name="product_category">
+                        ${generateCategoryOptions(product.category)}
+                    </select>
                     
                     <label for="edit-product-description">Description</label>
                     <textarea id="edit-product-description" name="product_description" rows="6">${product.description}</textarea>

@@ -481,11 +481,8 @@ function custom_woocommerce_add_product_form_shortcode()
     $redirect_after_submit = false;
 
     if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['cw_add_product_nonce'])) {
-        error_log('Single product form submitted');
-        
         if (!wp_verify_nonce($_POST['cw_add_product_nonce'], 'cw_add_product')) {
             $message = '<p class="cw-form-error">' . esc_html__('Security check failed.', 'custom-woocommerce') . '</p>';
-            error_log('Nonce verification failed');
         } else {
             $title = isset($_POST['cw_product_title']) ? sanitize_text_field($_POST['cw_product_title']) : '';
             $price = isset($_POST['cw_product_price']) ? wc_format_decimal($_POST['cw_product_price']) : '';
@@ -493,36 +490,29 @@ function custom_woocommerce_add_product_form_shortcode()
             $description = isset($_POST['cw_product_description']) ? wp_kses_post($_POST['cw_product_description']) : '';
             $category = isset($_POST['cw_product_category']) ? sanitize_text_field($_POST['cw_product_category']) : '';
 
-            error_log("Product data - Title: $title, Price: $price");
-
             if (empty($title) || empty($price)) {
                 $message = '<p class="cw-form-error">' . esc_html__('Title and price are required.', 'custom-woocommerce') . '</p>';
-                error_log('Title or price empty');
             } else {
-                $product_id = wp_insert_post([
-                    'post_title' => $title,
-                    'post_content' => $description,
-                    'post_status' => 'publish',
-                    'post_type' => 'product',
-                ]);
-
-                if (is_wp_error($product_id)) {
-                    $error_message = $product_id->get_error_message();
-                    $message = '<p class="cw-form-error">' . esc_html__('Failed to create product: ', 'custom-woocommerce') . esc_html($error_message) . '</p>';
-                    error_log('wp_insert_post failed: ' . $error_message);
-                } else {
-                    error_log("Product created with ID: $product_id");
-                    
-                    update_post_meta($product_id, '_regular_price', $price);
-                    update_post_meta($product_id, '_price', $price);
-                    update_post_meta($product_id, '_visibility', 'visible');
-                    update_post_meta($product_id, '_stock_status', 'instock');
-                    update_post_meta($product_id, '_manage_stock', 'no');
+                try {
+                    // Use WooCommerce Product class
+                    $product = new WC_Product_Simple();
+                    $product->set_name($title);
+                    $product->set_description($description);
+                    $product->set_regular_price($price);
+                    $product->set_status('publish');
                     
                     if (!empty($sku)) {
-                        update_post_meta($product_id, '_sku', $sku);
+                        $product->set_sku($sku);
                     }
+                    
+                    // Set stock management
+                    $product->set_manage_stock(false);
+                    $product->set_stock_status('instock');
+                    
+                    // Save product first to get ID
+                    $product_id = $product->save();
 
+                    // Handle category
                     if (!empty($category)) {
                         $term = term_exists($category, 'product_cat');
                         if (!$term) {
@@ -530,11 +520,11 @@ function custom_woocommerce_add_product_form_shortcode()
                         }
                         if (!is_wp_error($term)) {
                             $term_id = is_array($term) ? $term['term_id'] : $term;
-                            wp_set_object_terms($product_id, (int) $term_id, 'product_cat');
-                            error_log("Category set: $category");
+                            $product->set_category_ids([(int) $term_id]);
                         }
                     }
 
+                    // Handle image upload
                     if (!empty($_FILES['cw_product_image']['name'])) {
                         require_once ABSPATH . 'wp-admin/includes/file.php';
                         require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -542,15 +532,17 @@ function custom_woocommerce_add_product_form_shortcode()
 
                         $attachment_id = media_handle_upload('cw_product_image', $product_id);
                         if (!is_wp_error($attachment_id)) {
-                            set_post_thumbnail($product_id, $attachment_id);
-                            error_log("Image uploaded and set as thumbnail: $attachment_id");
-                        } else {
-                            error_log('Image upload failed: ' . $attachment_id->get_error_message());
+                            $product->set_image_id($attachment_id);
                         }
                     }
+                    
+                    // Save again with all updates
+                    $product->save();
 
                     $message = '<p class="cw-form-success">' . esc_html__('Product created successfully! ', 'custom-woocommerce') . '<a href="' . esc_url(get_permalink($product_id)) . '">' . esc_html__('View Product', 'custom-woocommerce') . '</a></p>';
                     $redirect_after_submit = true;
+                } catch (Exception $e) {
+                    $message = '<p class="cw-form-error">' . esc_html__('Failed to create product: ', 'custom-woocommerce') . esc_html($e->getMessage()) . '</p>';
                 }
             }
         }
@@ -588,7 +580,18 @@ function custom_woocommerce_add_product_form_shortcode()
         <input type="text" id="cw-product-sku" name="cw_product_sku">
 
         <label for="cw-product-category"><?php esc_html_e('Category', 'custom-woocommerce'); ?></label>
-        <input type="text" id="cw-product-category" name="cw_product_category">
+        <select id="cw-product-category" name="cw_product_category">
+            <option value=""><?php esc_html_e('Select a category', 'custom-woocommerce'); ?></option>
+            <?php
+            $categories = get_terms([
+                'taxonomy' => 'product_cat',
+                'hide_empty' => false,
+            ]);
+            foreach ($categories as $cat) {
+                echo '<option value="' . esc_attr($cat->name) . '">' . esc_html($cat->name) . '</option>';
+            }
+            ?>
+        </select>
 
         <label for="cw-product-description"><?php esc_html_e('Description', 'custom-woocommerce'); ?></label>
         <textarea id="cw-product-description" name="cw_product_description" rows="6"></textarea>
@@ -651,82 +654,82 @@ function custom_woocommerce_handle_bulk_product()
         return;
     }
 
-    // Create product
-    $product_id = wp_insert_post([
-        'post_title' => $title,
-        'post_content' => $description,
-        'post_status' => 'publish',
-        'post_type' => 'product',
-    ]);
-
-    if (is_wp_error($product_id)) {
-        wp_send_json_error(['message' => 'Failed to create product: ' . $product_id->get_error_message()]);
-        return;
-    }
-
-    // Set product price
-    update_post_meta($product_id, '_regular_price', $price);
-    update_post_meta($product_id, '_price', $price);
-    update_post_meta($product_id, '_visibility', 'visible');
-    update_post_meta($product_id, '_stock_status', 'instock');
-    update_post_meta($product_id, '_manage_stock', 'no');
-
-    // Set SKU if provided
-    if (!empty($sku)) {
-        update_post_meta($product_id, '_sku', $sku);
-    }
-
-    // Set category if provided
-    if (!empty($category)) {
-        $term = term_exists($category, 'product_cat');
-        if (!$term) {
-            $term = wp_insert_term($category, 'product_cat');
+    try {
+        // Use WooCommerce Product class
+        $product = new WC_Product_Simple();
+        $product->set_name($title);
+        $product->set_description($description);
+        $product->set_regular_price($price);
+        $product->set_status('publish');
+        
+        if (!empty($sku)) {
+            $product->set_sku($sku);
         }
-        if (!is_wp_error($term)) {
-            $term_id = is_array($term) ? $term['term_id'] : $term;
-            wp_set_object_terms($product_id, (int) $term_id, 'product_cat');
+        
+        // Set stock management
+        $product->set_manage_stock(false);
+        $product->set_stock_status('instock');
+        
+        // Save product first to get ID
+        $product_id = $product->save();
+
+        // Handle category
+        if (!empty($category)) {
+            $term = term_exists($category, 'product_cat');
+            if (!$term) {
+                $term = wp_insert_term($category, 'product_cat');
+            }
+            if (!is_wp_error($term)) {
+                $term_id = is_array($term) ? $term['term_id'] : $term;
+                $product->set_category_ids([(int) $term_id]);
+            }
         }
-    }
 
-    // Handle image upload from base64 data
-    if (!empty($image_data)) {
-        // Extract base64 data
-        if (preg_match('/^data:image\/(\w+);base64,(.+)$/', $image_data, $matches)) {
-            $image_type = $matches[1];
-            $image_base64 = $matches[2];
-            $image_decoded = base64_decode($image_base64);
+        // Handle image upload from base64 data
+        if (!empty($image_data)) {
+            // Extract base64 data
+            if (preg_match('/^data:image\/(\w+);base64,(.+)$/', $image_data, $matches)) {
+                $image_type = $matches[1];
+                $image_base64 = $matches[2];
+                $image_decoded = base64_decode($image_base64);
 
-            if ($image_decoded !== false) {
-                // Create unique filename
-                $filename = 'product-' . $product_id . '-' . time() . '.' . $image_type;
-                $upload_dir = wp_upload_dir();
-                $upload_path = $upload_dir['path'] . '/' . $filename;
+                if ($image_decoded !== false) {
+                    // Create unique filename
+                    $filename = 'product-' . $product_id . '-' . time() . '.' . $image_type;
+                    $upload_dir = wp_upload_dir();
+                    $upload_path = $upload_dir['path'] . '/' . $filename;
 
-                // Save image file
-                if (file_put_contents($upload_path, $image_decoded)) {
-                    // Create attachment
-                    $attachment_id = wp_insert_attachment([
-                        'post_mime_type' => 'image/' . $image_type,
-                        'post_title' => sanitize_file_name($filename),
-                        'post_content' => '',
-                        'post_status' => 'inherit'
-                    ], $upload_path, $product_id);
+                    // Save image file
+                    if (file_put_contents($upload_path, $image_decoded)) {
+                        // Create attachment
+                        $attachment_id = wp_insert_attachment([
+                            'post_mime_type' => 'image/' . $image_type,
+                            'post_title' => sanitize_file_name($filename),
+                            'post_content' => '',
+                            'post_status' => 'inherit'
+                        ], $upload_path, $product_id);
 
-                    if (!is_wp_error($attachment_id)) {
-                        require_once ABSPATH . 'wp-admin/includes/image.php';
-                        $attach_data = wp_generate_attachment_metadata($attachment_id, $upload_path);
-                        wp_update_attachment_metadata($attachment_id, $attach_data);
-                        set_post_thumbnail($product_id, $attachment_id);
+                        if (!is_wp_error($attachment_id)) {
+                            require_once ABSPATH . 'wp-admin/includes/image.php';
+                            $attach_data = wp_generate_attachment_metadata($attachment_id, $upload_path);
+                            wp_update_attachment_metadata($attachment_id, $attach_data);
+                            $product->set_image_id($attachment_id);
+                        }
                     }
                 }
             }
         }
-    }
+        
+        // Save again with all updates
+        $product->save();
 
-    wp_send_json_success([
-        'message' => 'Product created successfully.',
-        'product_id' => $product_id
-    ]);
+        wp_send_json_success([
+            'message' => 'Product created successfully.',
+            'product_id' => $product_id
+        ]);
+    } catch (Exception $e) {
+        wp_send_json_error(['message' => 'Failed to create product: ' . $e->getMessage()]);
+    }
 }
 add_action('wp_ajax_cw_add_bulk_product', 'custom_woocommerce_handle_bulk_product');
 
@@ -880,3 +883,24 @@ function custom_woocommerce_delete_product()
     wp_send_json_success(['message' => 'Product deleted successfully.']);
 }
 add_action('wp_ajax_cw_delete_product', 'custom_woocommerce_delete_product');
+
+// AJAX handler to get product categories
+function custom_woocommerce_get_categories()
+{
+    $categories = get_terms([
+        'taxonomy' => 'product_cat',
+        'hide_empty' => false,
+    ]);
+
+    $cat_list = [];
+    foreach ($categories as $cat) {
+        $cat_list[] = [
+            'id' => $cat->term_id,
+            'name' => $cat->name,
+            'slug' => $cat->slug,
+        ];
+    }
+
+    wp_send_json_success($cat_list);
+}
+add_action('wp_ajax_cw_get_categories', 'custom_woocommerce_get_categories');
