@@ -33,9 +33,11 @@ if (!defined('ABSPATH')) {
                     }
                     ?>
                 </div>
-                <a class="button button-accent" href="<?php echo esc_url(home_url('/add-product/')); ?>">
-                    <?php esc_html_e('Add Product', 'custom-woocommerce'); ?>
-                </a>
+                <?php if (current_user_can('manage_options')) : ?>
+                    <a class="button button-accent" href="<?php echo esc_url(home_url('/add-product/')); ?>">
+                        <?php esc_html_e('Add Product', 'custom-woocommerce'); ?>
+                    </a>
+                <?php endif; ?>
                 <?php
                 $account_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/my-account/');
                 $login_url = home_url('/login/');
