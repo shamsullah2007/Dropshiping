@@ -50,4 +50,66 @@ document.addEventListener('DOMContentLoaded', () => {
         accountPanel.appendChild(accountContent);
         accountContent.classList.add('cw-account-content');
     }
+
+    // Carousel functionality
+    const carousels = document.querySelectorAll('[data-carousel-id]');
+
+    carousels.forEach(carousel => {
+        const carouselId = carousel.getAttribute('data-carousel-id');
+        const track = carousel.querySelector('.carousel-track');
+        const prevBtn = document.querySelector(`.carousel-prev[data-carousel="${carouselId}"]`);
+        const nextBtn = document.querySelector(`.carousel-next[data-carousel="${carouselId}"]`);
+        const items = track.querySelectorAll('.carousel-item');
+
+        if (!track || items.length === 0) return;
+
+        let currentIndex = 0;
+        const itemsPerView = getItemsPerView();
+        const maxIndex = Math.max(0, items.length - itemsPerView);
+
+        function getItemsPerView() {
+            if (window.innerWidth <= 600) return 1;
+            if (window.innerWidth <= 900) return 2;
+            return 3;
+        }
+
+        function updateCarousel() {
+            const itemWidth = items[0].offsetWidth;
+            const gap = 20;
+            const offset = -(currentIndex * (itemWidth + gap));
+            track.style.transform = `translateX(${offset}px)`;
+
+            if (prevBtn) prevBtn.disabled = currentIndex === 0;
+            if (nextBtn) nextBtn.disabled = currentIndex >= maxIndex;
+        }
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (currentIndex > 0) {
+                    currentIndex--;
+                    updateCarousel();
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                if (currentIndex < maxIndex) {
+                    currentIndex++;
+                    updateCarousel();
+                }
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            const newItemsPerView = getItemsPerView();
+            const newMaxIndex = Math.max(0, items.length - newItemsPerView);
+            if (currentIndex > newMaxIndex) {
+                currentIndex = newMaxIndex;
+            }
+            updateCarousel();
+        });
+
+        updateCarousel();
+    });
 });
