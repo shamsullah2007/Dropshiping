@@ -60,6 +60,21 @@ function redirect_wp_login_to_custom_page() {
 }
 add_action('init', 'redirect_wp_login_to_custom_page');
 
+// Redirect logout to custom login page
+function custom_woocommerce_logout_redirect($redirect_to, $requested_redirect_to, $user)
+{
+    return home_url('/login/');
+}
+add_filter('logout_redirect', 'custom_woocommerce_logout_redirect', 10, 3);
+
+// Redirect WooCommerce logout to custom login page
+function custom_woocommerce_wc_logout_redirect()
+{
+    wp_redirect(home_url('/login/'));
+    exit;
+}
+add_action('wp_logout', 'custom_woocommerce_wc_logout_redirect');
+
 // Redirect wp-admin to custom login for logged-out users
 function custom_woocommerce_redirect_admin()
 {
