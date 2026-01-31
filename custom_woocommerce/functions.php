@@ -134,6 +134,12 @@ function custom_woocommerce_handle_avatar_upload()
 }
 add_action('template_redirect', 'custom_woocommerce_handle_avatar_upload');
 
+function custom_woocommerce_remove_account_dashboard_notice($content)
+{
+    return '';
+}
+add_filter('woocommerce_account_dashboard', 'custom_woocommerce_remove_account_dashboard_notice', 10, 1);
+
 function custom_woocommerce_add_product_form_shortcode()
 {
     if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {
