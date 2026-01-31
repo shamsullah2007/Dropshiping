@@ -391,14 +391,18 @@ a:hover {
 }
 
 .woocommerce-account .woocommerce {
-    display: grid;
-    gap: 24px;
+    display: block;
 }
 
-@media (min-width: 900px) {
-    .woocommerce-account .woocommerce {
-        grid-template-columns: 260px 1fr;
-        align-items: start;
+.woocommerce-MyAccount-navigation {
+    width: 50%;
+    min-width: 280px;
+    margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+    .woocommerce-MyAccount-navigation {
+        width: 100%;
     }
 }
 
@@ -468,7 +472,14 @@ a:hover {
     margin: 0;
     padding: 8px 0 0;
     display: grid;
-    gap: 6px;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 700px) {
+    .cw-account-menu {
+        grid-template-columns: 1fr;
+    }
 }
 
 .cw-account-menu li a {

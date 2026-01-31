@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const header = document.querySelector('.site-header');
     const animatedItems = document.querySelectorAll('[data-animate]');
+    const avatarInput = document.querySelector('#cw-profile-avatar');
 
     const updateHeader = () => {
         if (!header) {
@@ -32,5 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
         animatedItems.forEach((item) => observer.observe(item));
     } else {
         animatedItems.forEach((item) => item.classList.add('is-visible'));
+    }
+
+    if (avatarInput) {
+        avatarInput.addEventListener('change', () => {
+            const form = avatarInput.closest('form');
+            if (form) {
+                form.submit();
+            }
+        });
     }
 });
