@@ -34,7 +34,7 @@ if (!defined('ABSPATH')) {
                     ?>
                 </div>
                 <?php if (current_user_can('manage_options')) : ?>
-                    <a class="button button-accent" href="<?php echo esc_url(home_url('/add-product/')); ?>">
+                    <a class="button button-accent" href="<?php echo esc_url(home_url('/product-manager/')); ?>">
                         <?php esc_html_e('Add Product', 'custom-woocommerce'); ?>
                     </a>
                 <?php endif; ?>

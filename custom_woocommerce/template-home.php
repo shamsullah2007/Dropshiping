@@ -30,11 +30,20 @@ get_header();
                             'order' => 'DESC',
                             'status' => 'publish',
                         ]);
+                        
+                        // Debug logging
+                        error_log("Latest Products Count: " . count($latest_products));
+                        if (count($latest_products) === 0) {
+                            error_log("No products found. Trying alternative query...");
+                            $latest_products = wc_get_products([
+                                'limit' => 12,
+                                'orderby' => 'date',
+                                'order' => 'DESC',
+                            ]);
+                            error_log("Alternative query count: " . count($latest_products));
+                        }
+                        
                         foreach ($latest_products as $product) :
-                            wc_get_template_part('content', 'product');
-                            global $product;
-                            $product = $product;
-                            setup_postdata($product->get_id());
                         ?>
                             <div class="carousel-item">
                                 <div class="product-card">
