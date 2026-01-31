@@ -42,6 +42,34 @@ function custom_woocommerce_flush_rewrite_rules()
 }
 add_action('init', 'custom_woocommerce_flush_rewrite_rules', 999);
 
+// Redirect default WordPress login to custom login page
+function redirect_wp_login_to_custom_page() {
+    global $post;
+    
+    // Don't redirect if we're already on login or registration page
+    if (is_page() && $post && in_array($post->post_name, ['login', 'registeration'])) {
+        return;
+    }
+    
+    $login_page = home_url('/login/');
+
+    if (basename($_SERVER['REQUEST_URI']) == "wp-login.php" && $_SERVER['REQUEST_METHOD'] == 'GET') {
+        wp_redirect($login_page);
+        exit;
+    }
+}
+add_action('init', 'redirect_wp_login_to_custom_page');
+
+// Redirect wp-admin to custom login for logged-out users
+function custom_woocommerce_redirect_admin()
+{
+    if (!is_user_logged_in() && is_admin() && !wp_doing_ajax()) {
+        wp_redirect(home_url('/login/'));
+        exit;
+    }
+}
+add_action('admin_init', 'custom_woocommerce_redirect_admin');
+
 function custom_woocommerce_widgets_init()
 {
     register_sidebar([
@@ -197,24 +225,41 @@ function custom_woocommerce_generate_otp()
 function custom_woocommerce_store_otp($context, $email, array $data)
 {
     $otp = custom_woocommerce_generate_otp();
-    $key = 'cw_otp_' . $context . '_' . md5(strtolower($email));
+    $normalized_email = strtolower(trim($email));
+    $key = 'cw_otp_' . $context . '_' . md5($normalized_email);
     $payload = [
         'otp_hash' => wp_hash_password($otp),
         'data' => $data,
         'email' => $email,
     ];
     set_transient($key, $payload, 10 * MINUTE_IN_SECONDS);
+    
+    // Debug: Log OTP storage
+    error_log("Stored OTP for context: $context, email: $email, key: $key, OTP: $otp");
+    
     return [$key, $otp];
 }
 
 function custom_woocommerce_verify_otp($context, $email, $otp)
 {
-    $key = 'cw_otp_' . $context . '_' . md5(strtolower($email));
+    $normalized_email = strtolower(trim($email));
+    $key = 'cw_otp_' . $context . '_' . md5($normalized_email);
     $payload = get_transient($key);
+    
+    // Debug: Log verification attempt
+    error_log("Verifying OTP - context: $context, email: $email, key: $key, provided OTP: $otp");
+    
     if (!$payload) {
+        error_log("No transient found for key: $key");
         return [false, null];
     }
+    
+    error_log("Found transient with hash: " . $payload['otp_hash']);
+    
     $valid = wp_check_password($otp, $payload['otp_hash']);
+    
+    error_log("Password check result: " . ($valid ? 'valid' : 'invalid'));
+    
     if (!$valid) {
         return [false, null];
     }
@@ -332,14 +377,24 @@ function custom_woocommerce_login_shortcode()
             custom_woocommerce_send_otp_email($email, $otp, __('Your password reset code', 'custom-woocommerce'));
             $message = '<p class="cw-form-success">' . esc_html__('OTP sent to your email.', 'custom-woocommerce') . '</p>';
             $step = 'forgot_verify';
+            $_POST['cw_email'] = $email; // Preserve email for next step
         }
     } elseif ('forgot_verify' === $step && isset($_POST['cw_forgot_verify_nonce']) && wp_verify_nonce($_POST['cw_forgot_verify_nonce'], 'cw_forgot_verify')) {
         $email = sanitize_email($_POST['cw_email'] ?? '');
         $otp = sanitize_text_field($_POST['cw_otp'] ?? '');
         $new_password = $_POST['cw_new_password'] ?? '';
+        
+        // Debug: Log the verification attempt
+        error_log("Verifying OTP for email: $email, OTP: $otp");
+        
         [$valid, $data] = custom_woocommerce_verify_otp('forgot', $email, $otp);
+        
+        // Debug: Log the result
+        error_log("OTP verification result: " . ($valid ? 'valid' : 'invalid'));
+        
         if (!$valid) {
             $message = '<p class="cw-form-error">' . esc_html__('Invalid or expired OTP.', 'custom-woocommerce') . '</p>';
+            $step = 'forgot_verify'; // Keep on verify step
         } else {
             $user = get_user_by('email', $email);
             if ($user && !empty($new_password)) {

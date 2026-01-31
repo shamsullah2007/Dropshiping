@@ -38,7 +38,7 @@ if (!defined('ABSPATH')) {
                 </a>
                 <?php
                 $account_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/my-account/');
-                $login_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : wp_login_url();
+                $login_url = home_url('/login/');
                 $cart_url = function_exists('wc_get_cart_url') ? wc_get_cart_url() : home_url('/cart/');
                 $cart_count = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_contents_count() : 0;
                 $avatar_url = is_user_logged_in() ? custom_woocommerce_get_user_avatar_url(get_current_user_id()) : get_avatar_url(0, ['size' => 48]);
