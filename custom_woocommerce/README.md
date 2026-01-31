@@ -34,3 +34,6 @@ A lightweight WooCommerce-ready theme with a modern header/footer and subtle ani
 ## Notes
 - This theme avoids page builders and widgets by default.
 - WooCommerce templates are handled by WooCommerce unless you add overrides.
+
+Register page: [cw_register]
+Login page: [cw_login]

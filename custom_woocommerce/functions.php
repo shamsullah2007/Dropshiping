@@ -140,6 +140,257 @@ function custom_woocommerce_remove_account_dashboard_notice($content)
 }
 add_filter('woocommerce_account_dashboard', 'custom_woocommerce_remove_account_dashboard_notice', 10, 1);
 
+function custom_woocommerce_send_otp_email($email, $otp, $subject)
+{
+    $site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
+    $message = '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111;">'
+        . '<h2 style="margin:0 0 12px;">' . esc_html($site_name) . '</h2>'
+        . '<p>Use the verification code below:</p>'
+        . '<div style="font-size: 28px; font-weight: 700; letter-spacing: 4px; padding: 12px 16px; background: #f3f4f6; display: inline-block; border-radius: 8px;">'
+        . esc_html($otp)
+        . '</div>'
+        . '<p style="margin-top: 12px;">This code expires in 10 minutes.</p>'
+        . '<p>If you did not request this, please ignore this email.</p>'
+        . '</div>';
+
+    $headers = [
+        'Content-Type: text/html; charset=UTF-8',
+    ];
+
+    return wp_mail($email, $subject, $message, $headers);
+}
+
+function custom_woocommerce_generate_otp()
+{
+    return (string) wp_rand(100000, 999999);
+}
+
+function custom_woocommerce_store_otp($context, $email, array $data)
+{
+    $otp = custom_woocommerce_generate_otp();
+    $key = 'cw_otp_' . $context . '_' . md5(strtolower($email));
+    $payload = [
+        'otp_hash' => wp_hash_password($otp),
+        'data' => $data,
+        'email' => $email,
+    ];
+    set_transient($key, $payload, 10 * MINUTE_IN_SECONDS);
+    return [$key, $otp];
+}
+
+function custom_woocommerce_verify_otp($context, $email, $otp)
+{
+    $key = 'cw_otp_' . $context . '_' . md5(strtolower($email));
+    $payload = get_transient($key);
+    if (!$payload) {
+        return [false, null];
+    }
+    $valid = wp_check_password($otp, $payload['otp_hash']);
+    if (!$valid) {
+        return [false, null];
+    }
+    delete_transient($key);
+    return [true, $payload['data']];
+}
+
+function custom_woocommerce_register_shortcode()
+{
+    $message = '';
+    $step = isset($_POST['cw_step']) ? sanitize_text_field($_POST['cw_step']) : 'start';
+
+    if ('send' === $step && isset($_POST['cw_register_nonce']) && wp_verify_nonce($_POST['cw_register_nonce'], 'cw_register')) {
+        $email = sanitize_email($_POST['cw_email'] ?? '');
+        $username = sanitize_user($_POST['cw_username'] ?? '');
+        $password = $_POST['cw_password'] ?? '';
+
+        if (empty($email) || empty($username) || empty($password)) {
+            $message = '<p class="cw-form-error">' . esc_html__('All fields are required.', 'custom-woocommerce') . '</p>';
+        } elseif (!is_email($email)) {
+            $message = '<p class="cw-form-error">' . esc_html__('Invalid email address.', 'custom-woocommerce') . '</p>';
+        } elseif (username_exists($username) || email_exists($email)) {
+            $message = '<p class="cw-form-error">' . esc_html__('Username or email already exists.', 'custom-woocommerce') . '</p>';
+        } else {
+            [$key, $otp] = custom_woocommerce_store_otp('register', $email, [
+                'email' => $email,
+                'username' => $username,
+                'password' => $password,
+            ]);
+            custom_woocommerce_send_otp_email($email, $otp, __('Your registration code', 'custom-woocommerce'));
+            $message = '<p class="cw-form-success">' . esc_html__('OTP sent to your email.', 'custom-woocommerce') . '</p>';
+            $step = 'verify';
+        }
+    } elseif ('verify' === $step && isset($_POST['cw_register_verify_nonce']) && wp_verify_nonce($_POST['cw_register_verify_nonce'], 'cw_register_verify')) {
+        $email = sanitize_email($_POST['cw_email'] ?? '');
+        $otp = sanitize_text_field($_POST['cw_otp'] ?? '');
+        [$valid, $data] = custom_woocommerce_verify_otp('register', $email, $otp);
+        if (!$valid || !$data) {
+            $message = '<p class="cw-form-error">' . esc_html__('Invalid or expired OTP.', 'custom-woocommerce') . '</p>';
+        } else {
+            $user_id = wp_create_user($data['username'], $data['password'], $data['email']);
+            if (is_wp_error($user_id)) {
+                $message = '<p class="cw-form-error">' . esc_html__('Registration failed.', 'custom-woocommerce') . '</p>';
+            } else {
+                $user = new WP_User($user_id);
+                $user->set_role('customer');
+                wp_set_current_user($user_id);
+                wp_set_auth_cookie($user_id);
+                wp_safe_redirect(function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/my-account/'));
+                exit;
+            }
+        }
+    }
+
+    ob_start();
+    echo $message;
+    ?>
+    <form class="cw-auth-form" method="post">
+        <?php if ('verify' !== $step) : ?>
+            <?php wp_nonce_field('cw_register', 'cw_register_nonce'); ?>
+            <input type="hidden" name="cw_step" value="send">
+            <label for="cw-username"><?php esc_html_e('Username', 'custom-woocommerce'); ?></label>
+            <input type="text" id="cw-username" name="cw_username" required>
+
+            <label for="cw-email"><?php esc_html_e('Email', 'custom-woocommerce'); ?></label>
+            <input type="email" id="cw-email" name="cw_email" required>
+
+            <label for="cw-password"><?php esc_html_e('Password', 'custom-woocommerce'); ?></label>
+            <input type="password" id="cw-password" name="cw_password" required>
+
+            <button type="submit" class="button button-accent"><?php esc_html_e('Send OTP', 'custom-woocommerce'); ?></button>
+        <?php else : ?>
+            <?php wp_nonce_field('cw_register_verify', 'cw_register_verify_nonce'); ?>
+            <input type="hidden" name="cw_step" value="verify">
+            <input type="hidden" name="cw_email" value="<?php echo esc_attr($_POST['cw_email'] ?? ''); ?>">
+
+            <label for="cw-otp"><?php esc_html_e('OTP Code', 'custom-woocommerce'); ?></label>
+            <input type="text" id="cw-otp" name="cw_otp" required>
+
+            <button type="submit" class="button button-accent"><?php esc_html_e('Verify & Register', 'custom-woocommerce'); ?></button>
+        <?php endif; ?>
+    </form>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('cw_register', 'custom_woocommerce_register_shortcode');
+
+function custom_woocommerce_login_shortcode()
+{
+    $message = '';
+    $step = isset($_POST['cw_login_step']) ? sanitize_text_field($_POST['cw_login_step']) : 'start';
+
+    if ('send' === $step && isset($_POST['cw_login_nonce']) && wp_verify_nonce($_POST['cw_login_nonce'], 'cw_login')) {
+        $login = sanitize_text_field($_POST['cw_login'] ?? '');
+        $password = $_POST['cw_password'] ?? '';
+        $user = wp_authenticate($login, $password);
+
+        if (is_wp_error($user)) {
+            $message = '<p class="cw-form-error">' . esc_html__('Invalid credentials.', 'custom-woocommerce') . '</p>';
+        } else {
+            $email = $user->user_email;
+            [$key, $otp] = custom_woocommerce_store_otp('login', $email, [
+                'user_id' => $user->ID,
+            ]);
+            custom_woocommerce_send_otp_email($email, $otp, __('Your login code', 'custom-woocommerce'));
+            $message = '<p class="cw-form-success">' . esc_html__('OTP sent to your email.', 'custom-woocommerce') . '</p>';
+            $step = 'verify';
+        }
+    } elseif ('verify' === $step && isset($_POST['cw_login_verify_nonce']) && wp_verify_nonce($_POST['cw_login_verify_nonce'], 'cw_login_verify')) {
+        $email = sanitize_email($_POST['cw_email'] ?? '');
+        $otp = sanitize_text_field($_POST['cw_otp'] ?? '');
+        [$valid, $data] = custom_woocommerce_verify_otp('login', $email, $otp);
+        if (!$valid || empty($data['user_id'])) {
+            $message = '<p class="cw-form-error">' . esc_html__('Invalid or expired OTP.', 'custom-woocommerce') . '</p>';
+        } else {
+            wp_set_current_user($data['user_id']);
+            wp_set_auth_cookie($data['user_id']);
+            wp_safe_redirect(function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/my-account/'));
+            exit;
+        }
+    } elseif ('forgot_send' === $step && isset($_POST['cw_forgot_nonce']) && wp_verify_nonce($_POST['cw_forgot_nonce'], 'cw_forgot')) {
+        $email = sanitize_email($_POST['cw_forgot_email'] ?? '');
+        if (!is_email($email) || !email_exists($email)) {
+            $message = '<p class="cw-form-error">' . esc_html__('Email not found.', 'custom-woocommerce') . '</p>';
+        } else {
+            [$key, $otp] = custom_woocommerce_store_otp('forgot', $email, [
+                'email' => $email,
+            ]);
+            custom_woocommerce_send_otp_email($email, $otp, __('Your password reset code', 'custom-woocommerce'));
+            $message = '<p class="cw-form-success">' . esc_html__('OTP sent to your email.', 'custom-woocommerce') . '</p>';
+            $step = 'forgot_verify';
+        }
+    } elseif ('forgot_verify' === $step && isset($_POST['cw_forgot_verify_nonce']) && wp_verify_nonce($_POST['cw_forgot_verify_nonce'], 'cw_forgot_verify')) {
+        $email = sanitize_email($_POST['cw_email'] ?? '');
+        $otp = sanitize_text_field($_POST['cw_otp'] ?? '');
+        $new_password = $_POST['cw_new_password'] ?? '';
+        [$valid, $data] = custom_woocommerce_verify_otp('forgot', $email, $otp);
+        if (!$valid) {
+            $message = '<p class="cw-form-error">' . esc_html__('Invalid or expired OTP.', 'custom-woocommerce') . '</p>';
+        } else {
+            $user = get_user_by('email', $email);
+            if ($user && !empty($new_password)) {
+                wp_set_password($new_password, $user->ID);
+            }
+            if ($user) {
+                wp_set_current_user($user->ID);
+                wp_set_auth_cookie($user->ID);
+                wp_safe_redirect(function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/my-account/'));
+                exit;
+            }
+        }
+    }
+
+    ob_start();
+    echo $message;
+    ?>
+    <form class="cw-auth-form" method="post">
+        <?php if ('verify' !== $step && 'forgot_verify' !== $step) : ?>
+            <?php wp_nonce_field('cw_login', 'cw_login_nonce'); ?>
+            <input type="hidden" name="cw_login_step" value="send">
+            <label for="cw-login"><?php esc_html_e('Email or Username', 'custom-woocommerce'); ?></label>
+            <input type="text" id="cw-login" name="cw_login" required>
+
+            <label for="cw-login-password"><?php esc_html_e('Password', 'custom-woocommerce'); ?></label>
+            <input type="password" id="cw-login-password" name="cw_password" required>
+
+            <button type="submit" class="button button-accent"><?php esc_html_e('Send OTP', 'custom-woocommerce'); ?></button>
+        <?php elseif ('verify' === $step) : ?>
+            <?php wp_nonce_field('cw_login_verify', 'cw_login_verify_nonce'); ?>
+            <input type="hidden" name="cw_login_step" value="verify">
+            <input type="hidden" name="cw_email" value="<?php echo esc_attr($_POST['cw_email'] ?? ''); ?>">
+
+            <label for="cw-login-otp"><?php esc_html_e('OTP Code', 'custom-woocommerce'); ?></label>
+            <input type="text" id="cw-login-otp" name="cw_otp" required>
+
+            <button type="submit" class="button button-accent"><?php esc_html_e('Verify & Login', 'custom-woocommerce'); ?></button>
+        <?php elseif ('forgot_verify' === $step) : ?>
+            <?php wp_nonce_field('cw_forgot_verify', 'cw_forgot_verify_nonce'); ?>
+            <input type="hidden" name="cw_login_step" value="forgot_verify">
+            <input type="hidden" name="cw_email" value="<?php echo esc_attr($_POST['cw_email'] ?? ''); ?>">
+
+            <label for="cw-forgot-otp"><?php esc_html_e('OTP Code', 'custom-woocommerce'); ?></label>
+            <input type="text" id="cw-forgot-otp" name="cw_otp" required>
+
+            <label for="cw-new-password"><?php esc_html_e('New Password (optional)', 'custom-woocommerce'); ?></label>
+            <input type="password" id="cw-new-password" name="cw_new_password">
+
+            <button type="submit" class="button button-accent"><?php esc_html_e('Verify & Continue', 'custom-woocommerce'); ?></button>
+        <?php endif; ?>
+    </form>
+
+    <?php if ('verify' !== $step && 'forgot_verify' !== $step) : ?>
+        <form class="cw-auth-form cw-auth-alt" method="post">
+            <?php wp_nonce_field('cw_forgot', 'cw_forgot_nonce'); ?>
+            <input type="hidden" name="cw_login_step" value="forgot_send">
+            <label for="cw-forgot-email"><?php esc_html_e('Forgot password? Enter your email', 'custom-woocommerce'); ?></label>
+            <input type="email" id="cw-forgot-email" name="cw_forgot_email" required>
+            <button type="submit" class="button"><?php esc_html_e('Send OTP', 'custom-woocommerce'); ?></button>
+        </form>
+    <?php endif; ?>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('cw_login', 'custom_woocommerce_login_shortcode');
+
 function custom_woocommerce_add_product_form_shortcode()
 {
     if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {
