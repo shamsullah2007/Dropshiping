@@ -478,10 +478,14 @@ function custom_woocommerce_add_product_form_shortcode()
     }
 
     $message = '';
+    $redirect_after_submit = false;
 
     if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['cw_add_product_nonce'])) {
+        error_log('Single product form submitted');
+        
         if (!wp_verify_nonce($_POST['cw_add_product_nonce'], 'cw_add_product')) {
             $message = '<p class="cw-form-error">' . esc_html__('Security check failed.', 'custom-woocommerce') . '</p>';
+            error_log('Nonce verification failed');
         } else {
             $title = isset($_POST['cw_product_title']) ? sanitize_text_field($_POST['cw_product_title']) : '';
             $price = isset($_POST['cw_product_price']) ? wc_format_decimal($_POST['cw_product_price']) : '';
@@ -489,8 +493,11 @@ function custom_woocommerce_add_product_form_shortcode()
             $description = isset($_POST['cw_product_description']) ? wp_kses_post($_POST['cw_product_description']) : '';
             $category = isset($_POST['cw_product_category']) ? sanitize_text_field($_POST['cw_product_category']) : '';
 
+            error_log("Product data - Title: $title, Price: $price");
+
             if (empty($title) || empty($price)) {
                 $message = '<p class="cw-form-error">' . esc_html__('Title and price are required.', 'custom-woocommerce') . '</p>';
+                error_log('Title or price empty');
             } else {
                 $product_id = wp_insert_post([
                     'post_title' => $title,
@@ -500,10 +507,18 @@ function custom_woocommerce_add_product_form_shortcode()
                 ]);
 
                 if (is_wp_error($product_id)) {
-                    $message = '<p class="cw-form-error">' . esc_html__('Failed to create product.', 'custom-woocommerce') . '</p>';
+                    $error_message = $product_id->get_error_message();
+                    $message = '<p class="cw-form-error">' . esc_html__('Failed to create product: ', 'custom-woocommerce') . esc_html($error_message) . '</p>';
+                    error_log('wp_insert_post failed: ' . $error_message);
                 } else {
+                    error_log("Product created with ID: $product_id");
+                    
                     update_post_meta($product_id, '_regular_price', $price);
                     update_post_meta($product_id, '_price', $price);
+                    update_post_meta($product_id, '_visibility', 'visible');
+                    update_post_meta($product_id, '_stock_status', 'instock');
+                    update_post_meta($product_id, '_manage_stock', 'no');
+                    
                     if (!empty($sku)) {
                         update_post_meta($product_id, '_sku', $sku);
                     }
@@ -516,6 +531,7 @@ function custom_woocommerce_add_product_form_shortcode()
                         if (!is_wp_error($term)) {
                             $term_id = is_array($term) ? $term['term_id'] : $term;
                             wp_set_object_terms($product_id, (int) $term_id, 'product_cat');
+                            error_log("Category set: $category");
                         }
                     }
 
@@ -527,13 +543,28 @@ function custom_woocommerce_add_product_form_shortcode()
                         $attachment_id = media_handle_upload('cw_product_image', $product_id);
                         if (!is_wp_error($attachment_id)) {
                             set_post_thumbnail($product_id, $attachment_id);
+                            error_log("Image uploaded and set as thumbnail: $attachment_id");
+                        } else {
+                            error_log('Image upload failed: ' . $attachment_id->get_error_message());
                         }
                     }
 
-                    $message = '<p class="cw-form-success">' . esc_html__('Product created successfully.', 'custom-woocommerce') . '</p>';
+                    $message = '<p class="cw-form-success">' . esc_html__('Product created successfully! ', 'custom-woocommerce') . '<a href="' . esc_url(get_permalink($product_id)) . '">' . esc_html__('View Product', 'custom-woocommerce') . '</a></p>';
+                    $redirect_after_submit = true;
                 }
             }
         }
+    }
+
+    // Redirect to refresh the form after successful submission
+    if ($redirect_after_submit) {
+        wp_safe_redirect(add_query_arg('product_added', '1', $_SERVER['REQUEST_URI']));
+        exit;
+    }
+
+    // Show success message if redirected after adding product
+    if (isset($_GET['product_added']) && $_GET['product_added'] == '1') {
+        $message = '<p class="cw-form-success">' . esc_html__('Product created successfully!', 'custom-woocommerce') . '</p>';
     }
 
     ob_start();
@@ -584,3 +615,268 @@ remove_action('woocommerce_before_main_content', 'woocommerce_output_content_wra
 remove_action('woocommerce_after_main_content', 'woocommerce_output_content_wrapper_end', 10);
 add_action('woocommerce_before_main_content', 'custom_woocommerce_woocommerce_wrapper_start', 10);
 add_action('woocommerce_after_main_content', 'custom_woocommerce_woocommerce_wrapper_end', 10);
+
+// AJAX handler for bulk product upload
+function custom_woocommerce_handle_bulk_product()
+{
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cw_add_bulk_product')) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+        return;
+    }
+
+    // Check permissions
+    if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'Insufficient permissions.']);
+        return;
+    }
+
+    // Check if WooCommerce is active
+    if (!class_exists('WooCommerce')) {
+        wp_send_json_error(['message' => 'WooCommerce is not active.']);
+        return;
+    }
+
+    // Get form data
+    $title = isset($_POST['cw_product_title']) ? sanitize_text_field($_POST['cw_product_title']) : '';
+    $price = isset($_POST['cw_product_price']) ? wc_format_decimal($_POST['cw_product_price']) : '';
+    $sku = isset($_POST['cw_product_sku']) ? sanitize_text_field($_POST['cw_product_sku']) : '';
+    $description = isset($_POST['cw_product_description']) ? wp_kses_post($_POST['cw_product_description']) : '';
+    $category = isset($_POST['cw_product_category']) ? sanitize_text_field($_POST['cw_product_category']) : '';
+    $image_data = isset($_POST['cw_bulk_image_data']) ? $_POST['cw_bulk_image_data'] : '';
+
+    // Validate required fields
+    if (empty($title) || empty($price)) {
+        wp_send_json_error(['message' => 'Title and price are required.']);
+        return;
+    }
+
+    // Create product
+    $product_id = wp_insert_post([
+        'post_title' => $title,
+        'post_content' => $description,
+        'post_status' => 'publish',
+        'post_type' => 'product',
+    ]);
+
+    if (is_wp_error($product_id)) {
+        wp_send_json_error(['message' => 'Failed to create product: ' . $product_id->get_error_message()]);
+        return;
+    }
+
+    // Set product price
+    update_post_meta($product_id, '_regular_price', $price);
+    update_post_meta($product_id, '_price', $price);
+    update_post_meta($product_id, '_visibility', 'visible');
+    update_post_meta($product_id, '_stock_status', 'instock');
+    update_post_meta($product_id, '_manage_stock', 'no');
+
+    // Set SKU if provided
+    if (!empty($sku)) {
+        update_post_meta($product_id, '_sku', $sku);
+    }
+
+    // Set category if provided
+    if (!empty($category)) {
+        $term = term_exists($category, 'product_cat');
+        if (!$term) {
+            $term = wp_insert_term($category, 'product_cat');
+        }
+        if (!is_wp_error($term)) {
+            $term_id = is_array($term) ? $term['term_id'] : $term;
+            wp_set_object_terms($product_id, (int) $term_id, 'product_cat');
+        }
+    }
+
+    // Handle image upload from base64 data
+    if (!empty($image_data)) {
+        // Extract base64 data
+        if (preg_match('/^data:image\/(\w+);base64,(.+)$/', $image_data, $matches)) {
+            $image_type = $matches[1];
+            $image_base64 = $matches[2];
+            $image_decoded = base64_decode($image_base64);
+
+            if ($image_decoded !== false) {
+                // Create unique filename
+                $filename = 'product-' . $product_id . '-' . time() . '.' . $image_type;
+                $upload_dir = wp_upload_dir();
+                $upload_path = $upload_dir['path'] . '/' . $filename;
+
+                // Save image file
+                if (file_put_contents($upload_path, $image_decoded)) {
+                    // Create attachment
+                    $attachment_id = wp_insert_attachment([
+                        'post_mime_type' => 'image/' . $image_type,
+                        'post_title' => sanitize_file_name($filename),
+                        'post_content' => '',
+                        'post_status' => 'inherit'
+                    ], $upload_path, $product_id);
+
+                    if (!is_wp_error($attachment_id)) {
+                        require_once ABSPATH . 'wp-admin/includes/image.php';
+                        $attach_data = wp_generate_attachment_metadata($attachment_id, $upload_path);
+                        wp_update_attachment_metadata($attachment_id, $attach_data);
+                        set_post_thumbnail($product_id, $attachment_id);
+                    }
+                }
+            }
+        }
+    }
+
+    wp_send_json_success([
+        'message' => 'Product created successfully.',
+        'product_id' => $product_id
+    ]);
+}
+add_action('wp_ajax_cw_add_bulk_product', 'custom_woocommerce_handle_bulk_product');
+
+// AJAX handler to get product data for editing
+function custom_woocommerce_get_product_for_edit()
+{
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cw_add_bulk_product')) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+        return;
+    }
+
+    if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'Insufficient permissions.']);
+        return;
+    }
+
+    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    if (!$product_id) {
+        wp_send_json_error(['message' => 'Invalid product ID.']);
+        return;
+    }
+
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        wp_send_json_error(['message' => 'Product not found.']);
+        return;
+    }
+
+    $categories = wp_get_post_terms($product_id, 'product_cat', ['fields' => 'names']);
+    
+    wp_send_json_success([
+        'id' => $product->get_id(),
+        'title' => $product->get_name(),
+        'price' => $product->get_regular_price(),
+        'sku' => $product->get_sku(),
+        'description' => $product->get_description(),
+        'category' => !empty($categories) ? $categories[0] : '',
+        'image' => wp_get_attachment_image_url($product->get_image_id(), 'medium')
+    ]);
+}
+add_action('wp_ajax_cw_get_product_for_edit', 'custom_woocommerce_get_product_for_edit');
+
+// AJAX handler to update product
+function custom_woocommerce_update_product()
+{
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cw_add_bulk_product')) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+        return;
+    }
+
+    if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'Insufficient permissions.']);
+        return;
+    }
+
+    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    if (!$product_id) {
+        wp_send_json_error(['message' => 'Invalid product ID.']);
+        return;
+    }
+
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        wp_send_json_error(['message' => 'Product not found.']);
+        return;
+    }
+
+    $title = isset($_POST['product_title']) ? sanitize_text_field($_POST['product_title']) : '';
+    $price = isset($_POST['product_price']) ? wc_format_decimal($_POST['product_price']) : '';
+    $sku = isset($_POST['product_sku']) ? sanitize_text_field($_POST['product_sku']) : '';
+    $description = isset($_POST['product_description']) ? wp_kses_post($_POST['product_description']) : '';
+    $category = isset($_POST['product_category']) ? sanitize_text_field($_POST['product_category']) : '';
+
+    if (empty($title) || empty($price)) {
+        wp_send_json_error(['message' => 'Title and price are required.']);
+        return;
+    }
+
+    // Update product
+    wp_update_post([
+        'ID' => $product_id,
+        'post_title' => $title,
+        'post_content' => $description,
+    ]);
+
+    update_post_meta($product_id, '_regular_price', $price);
+    update_post_meta($product_id, '_price', $price);
+    update_post_meta($product_id, '_sku', $sku);
+
+    // Update category
+    if (!empty($category)) {
+        $term = term_exists($category, 'product_cat');
+        if (!$term) {
+            $term = wp_insert_term($category, 'product_cat');
+        }
+        if (!is_wp_error($term)) {
+            $term_id = is_array($term) ? $term['term_id'] : $term;
+            wp_set_object_terms($product_id, (int) $term_id, 'product_cat');
+        }
+    }
+
+    // Handle image upload
+    if (!empty($_FILES['product_image']['name'])) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        $attachment_id = media_handle_upload('product_image', $product_id);
+        if (!is_wp_error($attachment_id)) {
+            set_post_thumbnail($product_id, $attachment_id);
+        }
+    }
+
+    wp_send_json_success(['message' => 'Product updated successfully.']);
+}
+add_action('wp_ajax_cw_update_product', 'custom_woocommerce_update_product');
+
+// AJAX handler to delete product
+function custom_woocommerce_delete_product()
+{
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cw_add_bulk_product')) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+        return;
+    }
+
+    if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'Insufficient permissions.']);
+        return;
+    }
+
+    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    if (!$product_id) {
+        wp_send_json_error(['message' => 'Invalid product ID.']);
+        return;
+    }
+
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        wp_send_json_error(['message' => 'Product not found.']);
+        return;
+    }
+
+    // Delete product
+    $deleted = wp_delete_post($product_id, true);
+    
+    if (!$deleted) {
+        wp_send_json_error(['message' => 'Failed to delete product.']);
+        return;
+    }
+
+    wp_send_json_success(['message' => 'Product deleted successfully.']);
+}
+add_action('wp_ajax_cw_delete_product', 'custom_woocommerce_delete_product');

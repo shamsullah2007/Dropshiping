@@ -155,6 +155,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Edit Product functionality
+    const editProductBtns = document.querySelectorAll('.edit-product-btn');
+    editProductBtns.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const productId = this.getAttribute('data-product-id');
+            loadProductForEdit(productId);
+        });
+    });
+
+    // Delete Product functionality
+    const deleteProductBtns = document.querySelectorAll('.delete-product-btn');
+    deleteProductBtns.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const productId = this.getAttribute('data-product-id');
+            if (confirm('Are you sure you want to delete this product?')) {
+                deleteProduct(productId);
+            }
+        });
+    });
+
     // Bulk Image Upload
     const bulkImagesInput = document.getElementById('bulk-images');
     const bulkImagesPreview = document.getElementById('bulkImagesPreview');
@@ -329,4 +349,133 @@ function showBulkForm(index) {
     `;
 
     bulkFormsContainer.appendChild(formDiv);
+}
+
+function loadProductForEdit(productId) {
+    const editTab = document.getElementById('edit-product-tab');
+    const editContainer = document.getElementById('editProductContainer');
+
+    editTab.style.display = 'block';
+    editTab.click();
+
+    editContainer.innerHTML = '<p>Loading product...</p>';
+
+    fetch(ajaxurl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            action: 'cw_get_product_for_edit',
+            product_id: productId,
+            nonce: document.querySelector('[name="cw_add_bulk_nonce"]')?.value
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const product = data.data;
+                editContainer.innerHTML = `
+                <form class="cw-add-product-form" id="edit-product-form">
+                    <input type="hidden" name="product_id" value="${product.id}">
+                    <div class="cw-image-preview" style="background-image: url('${product.image}');" class="${product.image ? 'has-image' : ''}"></div>
+                    <label for="edit-product-image" class="cw-image-label">Product Image</label>
+                    <input type="file" id="edit-product-image" name="product_image" accept="image/*">
+                    
+                    <label for="edit-product-title">Title *</label>
+                    <input type="text" id="edit-product-title" name="product_title" value="${product.title}" required>
+                    
+                    <label for="edit-product-price">Price *</label>
+                    <input type="number" step="0.01" id="edit-product-price" name="product_price" value="${product.price}" required>
+                    
+                    <label for="edit-product-sku">SKU</label>
+                    <input type="text" id="edit-product-sku" name="product_sku" value="${product.sku}">
+                    
+                    <label for="edit-product-category">Category</label>
+                    <input type="text" id="edit-product-category" name="product_category" value="${product.category}">
+                    
+                    <label for="edit-product-description">Description</label>
+                    <textarea id="edit-product-description" name="product_description" rows="6">${product.description}</textarea>
+                    
+                    <button type="submit" class="button button-accent">Update Product</button>
+                    <button type="button" class="button button-outline" id="cancel-edit-btn">Cancel</button>
+                </form>
+            `;
+
+                // Handle form submission
+                document.getElementById('edit-product-form').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    updateProduct(this);
+                });
+
+                // Handle cancel button
+                document.getElementById('cancel-edit-btn').addEventListener('click', function () {
+                    editTab.style.display = 'none';
+                    document.querySelector('.pm-tab-btn[data-tab="all-products"]').click();
+                });
+
+                // Handle image preview
+                const imageInput = document.getElementById('edit-product-image');
+                const imagePreview = editContainer.querySelector('.cw-image-preview');
+                imageInput.addEventListener('change', function () {
+                    const file = this.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            imagePreview.style.backgroundImage = `url('${e.target.result}')`;
+                            imagePreview.classList.add('has-image');
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            } else {
+                editContainer.innerHTML = `<p style="color: red;">${data.data.message || 'Failed to load product'}</p>`;
+            }
+        });
+}
+
+function updateProduct(form) {
+    const formData = new FormData(form);
+    formData.append('action', 'cw_update_product');
+    formData.append('nonce', document.querySelector('[name="cw_add_bulk_nonce"]')?.value);
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Updating...';
+
+    fetch(ajaxurl, {
+        method: 'POST',
+        body: formData
+    })
+        .then(res => res.json())
+        .then(data => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Update Product';
+
+            if (data.success) {
+                alert('Product updated successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + (data.data.message || 'Failed to update product'));
+            }
+        });
+}
+
+function deleteProduct(productId) {
+    fetch(ajaxurl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            action: 'cw_delete_product',
+            product_id: productId,
+            nonce: document.querySelector('[name="cw_add_bulk_nonce"]')?.value
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('Product deleted successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + (data.data.message || 'Failed to delete product'));
+            }
+        });
 }
