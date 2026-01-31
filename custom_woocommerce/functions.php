@@ -278,31 +278,17 @@ function custom_woocommerce_login_shortcode()
     $message = '';
     $step = isset($_POST['cw_login_step']) ? sanitize_text_field($_POST['cw_login_step']) : 'start';
 
-    if ('send' === $step && isset($_POST['cw_login_nonce']) && wp_verify_nonce($_POST['cw_login_nonce'], 'cw_login')) {
-        $login = sanitize_text_field($_POST['cw_login'] ?? '');
-        $password = $_POST['cw_password'] ?? '';
-        $user = wp_authenticate($login, $password);
+    if ('login' === $step && isset($_POST['cw_login_nonce']) && wp_verify_nonce($_POST['cw_login_nonce'], 'cw_login')) {
+        $creds = [
+            'user_login' => sanitize_text_field($_POST['cw_login'] ?? ''),
+            'user_password' => $_POST['cw_password'] ?? '',
+            'remember' => true,
+        ];
+        $user = wp_signon($creds, false);
 
         if (is_wp_error($user)) {
             $message = '<p class="cw-form-error">' . esc_html__('Invalid credentials.', 'custom-woocommerce') . '</p>';
         } else {
-            $email = $user->user_email;
-            [$key, $otp] = custom_woocommerce_store_otp('login', $email, [
-                'user_id' => $user->ID,
-            ]);
-            custom_woocommerce_send_otp_email($email, $otp, __('Your login code', 'custom-woocommerce'));
-            $message = '<p class="cw-form-success">' . esc_html__('OTP sent to your email.', 'custom-woocommerce') . '</p>';
-            $step = 'verify';
-        }
-    } elseif ('verify' === $step && isset($_POST['cw_login_verify_nonce']) && wp_verify_nonce($_POST['cw_login_verify_nonce'], 'cw_login_verify')) {
-        $email = sanitize_email($_POST['cw_email'] ?? '');
-        $otp = sanitize_text_field($_POST['cw_otp'] ?? '');
-        [$valid, $data] = custom_woocommerce_verify_otp('login', $email, $otp);
-        if (!$valid || empty($data['user_id'])) {
-            $message = '<p class="cw-form-error">' . esc_html__('Invalid or expired OTP.', 'custom-woocommerce') . '</p>';
-        } else {
-            wp_set_current_user($data['user_id']);
-            wp_set_auth_cookie($data['user_id']);
             wp_safe_redirect(function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : home_url('/my-account/'));
             exit;
         }
@@ -343,25 +329,16 @@ function custom_woocommerce_login_shortcode()
     echo $message;
     ?>
     <form class="cw-auth-form" method="post">
-        <?php if ('verify' !== $step && 'forgot_verify' !== $step) : ?>
+        <?php if ('forgot_verify' !== $step) : ?>
             <?php wp_nonce_field('cw_login', 'cw_login_nonce'); ?>
-            <input type="hidden" name="cw_login_step" value="send">
+            <input type="hidden" name="cw_login_step" value="login">
             <label for="cw-login"><?php esc_html_e('Email or Username', 'custom-woocommerce'); ?></label>
             <input type="text" id="cw-login" name="cw_login" required>
 
             <label for="cw-login-password"><?php esc_html_e('Password', 'custom-woocommerce'); ?></label>
             <input type="password" id="cw-login-password" name="cw_password" required>
 
-            <button type="submit" class="button button-accent"><?php esc_html_e('Send OTP', 'custom-woocommerce'); ?></button>
-        <?php elseif ('verify' === $step) : ?>
-            <?php wp_nonce_field('cw_login_verify', 'cw_login_verify_nonce'); ?>
-            <input type="hidden" name="cw_login_step" value="verify">
-            <input type="hidden" name="cw_email" value="<?php echo esc_attr($_POST['cw_email'] ?? ''); ?>">
-
-            <label for="cw-login-otp"><?php esc_html_e('OTP Code', 'custom-woocommerce'); ?></label>
-            <input type="text" id="cw-login-otp" name="cw_otp" required>
-
-            <button type="submit" class="button button-accent"><?php esc_html_e('Verify & Login', 'custom-woocommerce'); ?></button>
+            <button type="submit" class="button button-accent"><?php esc_html_e('Login', 'custom-woocommerce'); ?></button>
         <?php elseif ('forgot_verify' === $step) : ?>
             <?php wp_nonce_field('cw_forgot_verify', 'cw_forgot_verify_nonce'); ?>
             <input type="hidden" name="cw_login_step" value="forgot_verify">
@@ -377,7 +354,7 @@ function custom_woocommerce_login_shortcode()
         <?php endif; ?>
     </form>
 
-    <?php if ('verify' !== $step && 'forgot_verify' !== $step) : ?>
+    <?php if ('forgot_verify' !== $step) : ?>
         <form class="cw-auth-form cw-auth-alt" method="post">
             <?php wp_nonce_field('cw_forgot', 'cw_forgot_nonce'); ?>
             <input type="hidden" name="cw_login_step" value="forgot_send">
