@@ -106,6 +106,16 @@ function custom_woocommerce_widgets_init()
         'before_title' => '<h3 class="widget-title">',
         'after_title' => '</h3>',
     ]);
+
+    register_sidebar([
+        'name' => __('Shop Filters', 'custom-woocommerce'),
+        'id' => 'shop-filters',
+        'description' => __('Shop page filter widgets', 'custom-woocommerce'),
+        'before_widget' => '<section id="%1$s" class="widget %2$s">',
+        'after_widget' => '</section>',
+        'before_title' => '<h3 class="widget-title">',
+        'after_title' => '</h3>',
+    ]);
 }
 add_action('widgets_init', 'custom_woocommerce_widgets_init');
 
@@ -155,6 +165,16 @@ function custom_woocommerce_enqueue_assets()
         '1.0.0',
         true
     );
+
+    if (is_product()) {
+        wp_enqueue_script(
+            'custom-woocommerce-single-product',
+            get_template_directory_uri() . '/assets/js/single-product.js',
+            [],
+            '1.0.0',
+            true
+        );
+    }
 
     if (is_singular()) {
         global $post;
