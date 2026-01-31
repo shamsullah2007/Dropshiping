@@ -36,6 +36,12 @@ function custom_woocommerce_theme_setup()
 }
 add_action('after_setup_theme', 'custom_woocommerce_theme_setup');
 
+function custom_woocommerce_flush_rewrite_rules()
+{
+    flush_rewrite_rules(false);
+}
+add_action('init', 'custom_woocommerce_flush_rewrite_rules', 999);
+
 function custom_woocommerce_widgets_init()
 {
     register_sidebar([
@@ -153,11 +159,34 @@ function custom_woocommerce_send_otp_email($email, $otp, $subject)
         . '<p>If you did not request this, please ignore this email.</p>'
         . '</div>';
 
-    $headers = [
-        'Content-Type: text/html; charset=UTF-8',
-    ];
+    require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+    require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+    require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
 
-    return wp_mail($email, $subject, $message, $headers);
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+    try {
+        $mail->isSMTP();
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'shamsullahd9999@gmail.com';
+        $mail->Password = 'zipp fwkq oyeo atnh';
+        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+
+        $mail->setFrom('shamsullahd9999@gmail.com', $site_name);
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body = $message;
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("OTP email failed: {$mail->ErrorInfo}");
+        return false;
+    }
 }
 
 function custom_woocommerce_generate_otp()

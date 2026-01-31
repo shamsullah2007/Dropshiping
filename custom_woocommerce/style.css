@@ -166,6 +166,12 @@ a:hover {
     box-shadow: 0 8px 20px rgba(255, 91, 91, 0.35);
 }
 
+.button-outline {
+    background: #fff;
+    color: var(--cw-dark);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
 .header-link {
     display: inline-flex;
     align-items: center;
@@ -625,6 +631,13 @@ a:hover {
 .footer-heading {
     margin: 0 0 8px;
     font-weight: 600;
+}
+
+.footer-auth {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
 }
 
 .footer-menu li a {

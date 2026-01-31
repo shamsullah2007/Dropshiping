@@ -43,7 +43,16 @@ if (!defined('ABSPATH')) {
                 $cart_count = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_contents_count() : 0;
                 $avatar_url = is_user_logged_in() ? custom_woocommerce_get_user_avatar_url(get_current_user_id()) : get_avatar_url(0, ['size' => 48]);
                 $avatar_link = is_user_logged_in() ? $account_url : $login_url;
+                $register_url = home_url('/registeration/');
                 ?>
+                <?php if (!is_user_logged_in()) : ?>
+                    <a class="button button-outline" href="<?php echo esc_url($login_url); ?>">
+                        <?php esc_html_e('Login', 'custom-woocommerce'); ?>
+                    </a>
+                    <a class="button button-accent" href="<?php echo esc_url($register_url); ?>">
+                        <?php esc_html_e('Sign Up', 'custom-woocommerce'); ?>
+                    </a>
+                <?php endif; ?>
                 <a class="header-avatar" href="<?php echo esc_url($avatar_link); ?>">
                     <span class="screen-reader-text"><?php esc_html_e('My Account', 'custom-woocommerce'); ?></span>
                     <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php esc_attr_e('Profile', 'custom-woocommerce'); ?>">

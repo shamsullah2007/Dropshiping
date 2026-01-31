@@ -24,6 +24,16 @@ if (!defined('ABSPATH')) {
         </div>
         <div class="footer-meta" data-animate="fade-up">
             <p>&copy; <?php echo esc_html(date('Y')); ?> <?php bloginfo('name'); ?></p>
+            <?php if (!is_user_logged_in()) : ?>
+                <div class="footer-auth">
+                    <a class="button button-outline" href="<?php echo esc_url(home_url('/login/')); ?>">
+                        <?php esc_html_e('Login', 'custom-woocommerce'); ?>
+                    </a>
+                    <a class="button button-accent" href="<?php echo esc_url(home_url('/registeration/')); ?>">
+                        <?php esc_html_e('Sign Up', 'custom-woocommerce'); ?>
+                    </a>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </footer>
