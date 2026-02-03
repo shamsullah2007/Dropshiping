@@ -821,7 +821,7 @@ function custom_woocommerce_add_product_form_shortcode()
                         }
                     }
 
-                    // Handle image upload
+                    // Handle main image upload
                     if (!empty($_FILES['cw_product_image']['name'])) {
                         require_once ABSPATH . 'wp-admin/includes/file.php';
                         require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -830,6 +830,40 @@ function custom_woocommerce_add_product_form_shortcode()
                         $attachment_id = media_handle_upload('cw_product_image', $product_id);
                         if (!is_wp_error($attachment_id)) {
                             $product->set_image_id($attachment_id);
+                        }
+                    }
+                    
+                    // Handle gallery images upload
+                    if (!empty($_FILES['cw_product_gallery']['name'][0])) {
+                        require_once ABSPATH . 'wp-admin/includes/file.php';
+                        require_once ABSPATH . 'wp-admin/includes/image.php';
+                        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+                        $gallery_ids = [];
+                        $files = $_FILES['cw_product_gallery'];
+                        
+                        foreach ($files['name'] as $key => $value) {
+                            if ($files['name'][$key]) {
+                                $file = [
+                                    'name'     => $files['name'][$key],
+                                    'type'     => $files['type'][$key],
+                                    'tmp_name' => $files['tmp_name'][$key],
+                                    'error'    => $files['error'][$key],
+                                    'size'     => $files['size'][$key]
+                                ];
+                                
+                                $_FILES = ['upload_file' => $file];
+                                
+                                $gallery_attachment_id = media_handle_upload('upload_file', $product_id);
+                                
+                                if (!is_wp_error($gallery_attachment_id)) {
+                                    $gallery_ids[] = $gallery_attachment_id;
+                                }
+                            }
+                        }
+                        
+                        if (!empty($gallery_ids)) {
+                            $product->set_gallery_image_ids($gallery_ids);
                         }
                     }
                     
@@ -861,11 +895,23 @@ function custom_woocommerce_add_product_form_shortcode()
     ?>
     <form class="cw-add-product-form" method="post" enctype="multipart/form-data">
         <?php wp_nonce_field('cw_add_product', 'cw_add_product_nonce'); ?>
-        <div class="cw-image-preview" aria-hidden="true"></div>
-        <label for="cw-product-image" class="cw-image-label">
-            <?php esc_html_e('Product Image', 'custom-woocommerce'); ?>
-        </label>
-        <input type="file" id="cw-product-image" name="cw_product_image" accept="image/*">
+        
+        <div class="cw-image-upload-section">
+            <label class="cw-image-label">
+                <?php esc_html_e('Main Product Image', 'custom-woocommerce'); ?>
+            </label>
+            <div class="cw-image-preview" id="cw-main-image-preview" aria-hidden="true"></div>
+            <input type="file" id="cw-product-image" name="cw_product_image" accept="image/*" required>
+            
+            <label class="cw-image-label" style="margin-top: 20px;">
+                <?php esc_html_e('Product Gallery Images (Optional)', 'custom-woocommerce'); ?>
+            </label>
+            <input type="file" id="cw-product-gallery" name="cw_product_gallery[]" accept="image/*" multiple>
+            <div class="cw-gallery-preview" id="cw-gallery-preview"></div>
+            <p style="color: #666; font-size: 0.9rem; margin: 8px 0 0;">
+                <?php esc_html_e('You can select multiple images for the product gallery', 'custom-woocommerce'); ?>
+            </p>
+        </div>
 
         <label for="cw-product-title"><?php esc_html_e('Title', 'custom-woocommerce'); ?></label>
         <input type="text" id="cw-product-title" name="cw_product_title" required>
