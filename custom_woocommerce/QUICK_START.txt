@@ -1,0 +1,156 @@
+═══════════════════════════════════════════════════════════════
+  🚀 CJ DROPSHIPPING SINGLE PRODUCT PAGE - QUICK START
+═══════════════════════════════════════════════════════════════
+
+✅ WHAT'S NEW:
+  • Custom CJ Dropshipping layout for ALL products
+  • Video gallery support (multiple videos per product)
+  • Interactive image/video gallery with thumbnails
+  • Image zoom functionality
+  • Responsive design (mobile, tablet, desktop)
+  • Full backend integration
+
+───────────────────────────────────────────────────────────────
+📖 HOW TO USE:
+───────────────────────────────────────────────────────────────
+
+OPTION 1: AUTOMATIC (DEFAULT) ✓ RECOMMENDED
+  ✓ All products use the custom layout automatically
+  ✓ No configuration needed
+  ✓ Template: /woocommerce/single-product.php
+
+OPTION 2: SHORTCODE
+  • Add to any page: [cw_product_display]
+  • Only works on product pages
+
+───────────────────────────────────────────────────────────────
+🎬 TO ADD PRODUCT WITH VIDEOS:
+───────────────────────────────────────────────────────────────
+
+1. Admin → Product Manager → Add Single Item
+2. Fill: Title, Price, Description
+3. Upload Main Image
+4. Upload Gallery Images (click "Add Multiple" for gallery)
+5. Upload Videos (Multiple files supported!)
+6. Click Submit
+
+Result → Visit product page → See CJ layout with all images & videos!
+
+───────────────────────────────────────────────────────────────
+🎯 PAGE LAYOUT:
+───────────────────────────────────────────────────────────────
+
+LEFT: Vertical Thumbnail Gallery
+  • All images in a column
+  • Play icon for videos
+  • Click to switch between them
+  • Sticky on scroll
+
+CENTER: Large Image/Video Display
+  • Current image or video
+  • Smooth fade transitions
+  • Click to zoom
+  • Hover for scale effect
+
+RIGHT: Product Information
+  • Title
+  • Price (Red - CJ style)
+  • Quantity selector
+  • Add to Cart button
+  • Rating & metadata
+
+BELOW: Description, Reviews, Related Products
+
+───────────────────────────────────────────────────────────────
+⚡ FEATURES:
+───────────────────────────────────────────────────────────────
+
+✓ Image Zoom (click image to zoom, Esc to close)
+✓ Video Playback (muted, autoloop)
+✓ Smooth Animations
+✓ Mobile Responsive
+✓ Lazy Loading
+✓ Touch Friendly
+✓ CJ Dropshipping Colors (#ff4d4f red)
+
+───────────────────────────────────────────────────────────────
+📁 FILES:
+───────────────────────────────────────────────────────────────
+
+1. /woocommerce/single-product.php
+   → Main template (used by default)
+
+2. /assets/css/cj-single-product.css
+   → All styling & colors
+
+3. /assets/js/cj-single-product.js
+   → Gallery interactions & zoom
+
+4. /functions.php
+   → Backend + Shortcode registration
+
+───────────────────────────────────────────────────────────────
+🔧 SHORTCODE OPTION:
+───────────────────────────────────────────────────────────────
+
+Shortcode: [cw_product_display]
+
+Usage:
+  1. Create new page
+  2. Add shortcode
+  3. Save
+  4. View on a product page
+  5. See custom layout
+
+───────────────────────────────────────────────────────────────
+❓ TROUBLESHOOTING:
+───────────────────────────────────────────────────────────────
+
+Videos not showing?
+  → Check in wp_postmeta table for _product_video_ids
+  → Verify videos uploaded via Product Manager form
+
+Thumbnails not working?
+  → Clear browser cache (Ctrl+Shift+R)
+  → Check browser console for JS errors (F12)
+
+Layout broken?
+  → Verify cj-single-product.css file exists
+  → Clear server cache
+  → Flush rewrite rules (Settings → Permalinks → Save)
+
+Default template still showing?
+  → Verify woocommerce/single-product.php exists
+  → Check theme is active
+  → Clear all caches
+
+───────────────────────────────────────────────────────────────
+💡 CUSTOMIZATION:
+───────────────────────────────────────────────────────────────
+
+Change Colors:
+  Edit: assets/css/cj-single-product.css
+  Search: #ff4d4f (red), #f5f5f5 (gray), #e5e5e5 (borders)
+
+Change Layout Width:
+  Edit: line 9 in cj-single-product.css
+  Default: grid-template-columns: 420px 1fr
+
+Change Animation Speed:
+  Edit: 0.3s ease in CSS
+  Change to: 0.5s (slower) or 0.15s (faster)
+
+───────────────────────────────────────────────────────────────
+✅ EVERYTHING IS SET UP! NO MORE CONFIGURATION NEEDED.
+───────────────────────────────────────────────────────────────
+
+Just add products and they'll automatically use the new layout!
+
+Test it now:
+  1. Add a product with images + videos
+  2. Visit the product page
+  3. See the CJ Dropshipping layout
+  4. Click thumbnails to switch images/videos
+  5. Click image to zoom
+
+═══════════════════════════════════════════════════════════════
