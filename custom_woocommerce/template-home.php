@@ -85,12 +85,42 @@ get_header();
                 <div class="product-carousel" data-carousel-id="trending">
                     <div class="carousel-track">
                         <?php
-                        $trending_products = wc_get_products([
-                            'limit' => 12,
-                            'orderby' => 'popularity',
-                            'order' => 'DESC',
-                            'status' => 'publish',
-                        ]);
+                        // Get products ordered by review count (most reviews = trending)
+                        global $wpdb;
+                        $products_with_reviews = $wpdb->get_results(
+                            "SELECT p.ID, COUNT(c.comment_ID) as review_count
+                            FROM {$wpdb->posts} p
+                            LEFT JOIN {$wpdb->comments} c ON p.ID = c.comment_post_ID 
+                                AND c.comment_approved = 1 
+                                AND c.comment_type IN ('review', '')
+                            WHERE p.post_type = 'product' 
+                                AND p.post_status = 'publish'
+                            GROUP BY p.ID
+                            HAVING review_count > 0
+                            ORDER BY review_count DESC
+                            LIMIT 12"
+                        );
+                        
+                        $trending_products = [];
+                        if ($products_with_reviews) {
+                            foreach ($products_with_reviews as $item) {
+                                $product = wc_get_product($item->ID);
+                                if ($product) {
+                                    $trending_products[] = $product;
+                                }
+                            }
+                        }
+                        
+                        // If no products with reviews, fall back to popular products
+                        if (empty($trending_products)) {
+                            $trending_products = wc_get_products([
+                                'limit' => 12,
+                                'orderby' => 'popularity',
+                                'order' => 'DESC',
+                                'status' => 'publish',
+                            ]);
+                        }
+                        
                         foreach ($trending_products as $product) :
                         ?>
                             <div class="carousel-item">

@@ -72,20 +72,86 @@ function custom_woocommerce_get_product_reviews($limit = 12) {
             return get_comment( $review->comment_ID );
         }, $reviews );
         
-        // Filter to only include comments with ratings
+        // Filter to only include comments with ratings >= 4
         $reviews = array_filter( $reviews, function( $review ) {
             $rating = get_comment_meta( $review->comment_ID, 'rating', true );
-            return ! empty( $rating ) && $rating > 0;
+            return ! empty( $rating ) && $rating >= 4;
         });
         
         $reviews = array_values( $reviews );
     }
     
     // Debug: Log the review count
-    error_log( "Custom WooCommerce: Found " . count( $reviews ) . " approved reviews with ratings" );
+    error_log( "Custom WooCommerce: Found " . count( $reviews ) . " approved reviews with 4+ star ratings" );
     
     return $reviews;
 }
+
+// Restrict reviews to verified purchasers only
+function restrict_reviews_to_purchasers($open, $post_id) {
+    global $post;
+    
+    if (get_post_type($post_id) !== 'product') {
+        return $open;
+    }
+    
+    if (!is_user_logged_in()) {
+        return false;
+    }
+    
+    // Check if user has purchased this product
+    $current_user = wp_get_current_user();
+    $customer_orders = wc_get_orders(array(
+        'customer' => $current_user->ID,
+        'status' => 'completed',
+        'limit' => -1,
+    ));
+    
+    $purchased = false;
+    foreach ($customer_orders as $order) {
+        foreach ($order->get_items() as $item) {
+            if ($item->get_product_id() == $post_id) {
+                $purchased = true;
+                break 2;
+            }
+        }
+    }
+    
+    return $purchased ? $open : false;
+}
+add_filter('comments_open', 'restrict_reviews_to_purchasers', 10, 2);
+
+// Add custom message for users who haven't purchased
+function show_purchase_required_message() {
+    global $product;
+    
+    if (!is_user_logged_in()) {
+        echo '<p class="review-restriction-notice">You must be <a href="' . wc_get_page_permalink('myaccount') . '">logged in</a> to submit a review.</p>';
+        return;
+    }
+    
+    $current_user = wp_get_current_user();
+    $customer_orders = wc_get_orders(array(
+        'customer' => $current_user->ID,
+        'status' => 'completed',
+        'limit' => -1,
+    ));
+    
+    $purchased = false;
+    foreach ($customer_orders as $order) {
+        foreach ($order->get_items() as $item) {
+            if ($item->get_product_id() == $product->get_id()) {
+                $purchased = true;
+                break 2;
+            }
+        }
+    }
+    
+    if (!$purchased) {
+        echo '<p class="review-restriction-notice">Only customers who have purchased this product can leave a review.</p>';
+    }
+}
+add_action('comment_form_before', 'show_purchase_required_message');
 
 // Redirect default WordPress login to custom login page
 function redirect_wp_login_to_custom_page() {
