@@ -282,13 +282,13 @@ function custom_woocommerce_add_shop_checkout_to_menu($items, $args) {
 
 function custom_woocommerce_enqueue_assets()
 {
-    wp_enqueue_style('custom-woocommerce-style', get_stylesheet_uri(), [], '1.0.1');
-    wp_enqueue_style('custom-woocommerce-cj-single-product', get_template_directory_uri() . '/assets/css/cj-single-product.css', [], '1.0.1');
+    wp_enqueue_style('custom-woocommerce-style', get_stylesheet_uri(), [], '1.0.2');
+    wp_enqueue_style('custom-woocommerce-cj-single-product', get_template_directory_uri() . '/assets/css/cj-single-product.css', [], '1.0.2');
     wp_enqueue_script(
         'custom-woocommerce-theme',
         get_template_directory_uri() . '/assets/js/theme.js',
         [],
-        '1.0.1',
+        '1.0.2',
         true
     );
 
@@ -297,14 +297,14 @@ function custom_woocommerce_enqueue_assets()
             'custom-woocommerce-single-product',
             get_template_directory_uri() . '/assets/js/single-product.js',
             [],
-            '1.0.1',
+            '1.0.2',
             true
         );
         wp_enqueue_script(
             'custom-woocommerce-cj-product',
             get_template_directory_uri() . '/assets/js/cj-single-product.js',
             [],
-            '1.0.1',
+            '1.0.2',
             true
         );
     }
@@ -316,13 +316,35 @@ function custom_woocommerce_enqueue_assets()
                 'custom-woocommerce-add-product',
                 get_template_directory_uri() . '/assets/js/add-product.js',
                 [],
-                '1.0.1',
+                '1.0.2',
                 true
             );
         }
     }
 }
 add_action('wp_enqueue_scripts', 'custom_woocommerce_enqueue_assets');
+
+/**
+ * Override WooCommerce single product template with CJ styling
+ * This ensures our custom layout is used for all product pages
+ */
+function custom_woocommerce_override_product_template($template) {
+    if (is_product()) {
+        // Remove default WooCommerce hooks on product pages
+        remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_title', 5 );
+        remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_price', 10 );
+        remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_excerpt', 20 );
+        remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_meta', 21 );
+        remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_sharing', 50 );
+        
+        $custom_template = get_template_directory() . '/woocommerce/single-product.php';
+        if (file_exists($custom_template)) {
+            return $custom_template;
+        }
+    }
+    return $template;
+}
+add_filter('template_include', 'custom_woocommerce_override_product_template', 99);
 
 function custom_woocommerce_get_user_avatar_url($user_id)
 {
