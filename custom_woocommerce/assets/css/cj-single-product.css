@@ -435,7 +435,7 @@
 /* Match the exact custom shop grid */
 .related.products ul.products {
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-columns: repeat(5, 1fr) !important;
     gap: 5px !important;
     list-style: none !important;
     padding: 0 !important;
@@ -558,7 +558,7 @@
     }
 
     .related.products ul.products {
-        grid-template-columns: repeat(3, 1fr) !important;
+        grid-template-columns: repeat(5, 1fr) !important;
         gap: 5px !important;
     }
 }
@@ -603,7 +603,7 @@
     }
 
     .related.products ul.products {
-        grid-template-columns: repeat(3, 1fr) !important;
+        grid-template-columns: repeat(4, 1fr) !important;
         gap: 5px !important;
     }
 }
