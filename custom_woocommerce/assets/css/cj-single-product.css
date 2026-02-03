@@ -309,9 +309,9 @@
 
 /* BELOW SECTION */
 .cj-product-below {
-    max-width: 1400px;
-    margin: 40px auto 0;
-    padding: 0 20px;
+    max-width: 100%;
+    margin: 40px 0 0;
+    padding: 0;
 }
 
 /* Product Tabs & Reviews */
@@ -420,9 +420,9 @@
 /* Related Products Grid - Same as Custom Shop Page */
 .related.products {
     margin-top: 60px !important;
-    margin-left: -20px !important;
-    margin-right: -20px !important;
-    margin-bottom: -100px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
     padding: 40px 20px !important;
     border-top: none !important;
     border: none !important;
@@ -451,7 +451,7 @@
     color: #1d1d1f !important;
     margin: 0 0 30px !important;
     padding: 0 !important;
-    max-width: 1400px !important;
+    text-align: left !important;
 }
 
 /* Match the exact custom shop grid */
@@ -462,7 +462,8 @@
     list-style: none !important;
     padding: 0 !important;
     margin: 0 auto !important;
-    max-width: 1400px !important;
+    max-width: 100% !important;
+    width: 100% !important;
 }
 
 .related.products ul.products li.product {
