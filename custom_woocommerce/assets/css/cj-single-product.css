@@ -417,7 +417,7 @@
     line-height: 1.6 !important;
 }
 
-/* Related Products Grid - Same as Shop Page */
+/* Related Products Grid - Same as Custom Shop Page */
 .related.products {
     margin-top: 40px !important;
     padding-top: 40px !important;
@@ -427,11 +427,12 @@
 .related.products h2 {
     font-size: 1.6rem !important;
     font-weight: 700 !important;
-    color: #333 !important;
-    margin: 0 0 24px !important;
+    color: #1d1d1f !important;
+    margin: 0 0 30px !important;
     padding: 0 !important;
 }
 
+/* Match the exact custom shop grid */
 .related.products ul.products {
     display: grid !important;
     grid-template-columns: repeat(5, 1fr) !important;
@@ -451,8 +452,8 @@
     display: flex !important;
     flex-direction: column !important;
     height: 100% !important;
-    padding: 0 !important;
     margin: 0 !important;
+    padding: 0 !important;
 }
 
 .related.products ul.products li.product:hover {
@@ -460,67 +461,89 @@
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12) !important;
 }
 
-.related.products .product-image {
+/* Product image container */
+.related.products li.product a.woocommerce-loop-product__link {
+    display: block !important;
     width: 100% !important;
-    height: 200px !important;
-    overflow: hidden !important;
+    height: auto !important;
 }
 
-.related.products .product-image img {
+.related.products li.product img {
+    display: block !important;
     width: 100% !important;
-    height: 100% !important;
+    height: auto !important;
     object-fit: cover !important;
+    aspect-ratio: 1 !important;
     transition: transform 0.3s ease !important;
 }
 
-.related.products ul.products li.product:hover .product-image img {
+.related.products li.product:hover img {
     transform: scale(1.05) !important;
 }
 
-.related.products .product-details {
-    padding: 12px !important;
-    flex: 1 !important;
-    display: flex !important;
-    flex-direction: column !important;
-}
-
-.related.products h3 {
+/* Product info section */
+.related.products .woocommerce-loop-product__title,
+.related.products h3.woocommerce-loop-product__title {
+    margin: 12px 12px 8px !important;
     font-size: 0.95rem !important;
     font-weight: 600 !important;
-    color: #333 !important;
-    margin: 0 0 8px !important;
-    line-height: 1.4 !important;
-    flex: 1 !important;
+    line-height: 1.3 !important;
+    color: #1d1d1f !important;
+    padding: 0 !important;
+}
+
+/* Price styling */
+.related.products span.price {
+    display: block !important;
+    margin: 0 12px 12px !important;
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
 }
 
 .related.products .price {
-    font-size: 1.2rem !important;
-    font-weight: 700 !important;
-    color: #ff4d4f !important;
-    margin: 8px 0 !important;
+    color: #1f7aec !important;
 }
 
-.related.products .button {
-    background: #ff4d4f !important;
+.related.products .price .woocommerce-Price-amount {
+    color: #1f7aec !important;
+}
+
+/* Add to cart button - match custom shop style */
+.related.products .button,
+.related.products .product-add-to-cart {
+    display: block !important;
+    width: calc(100% - 24px) !important;
+    margin: 0 12px 12px !important;
+    padding: 10px !important;
+    background: #ff7a59 !important;
     color: #fff !important;
     border: none !important;
-    padding: 8px 12px !important;
-    border-radius: 2px !important;
+    border-radius: 999px !important;
     font-weight: 600 !important;
-    font-size: 0.85rem !important;
+    font-size: 0.9rem !important;
     text-decoration: none !important;
     cursor: pointer !important;
     transition: all 0.3s ease !important;
-    width: 100% !important;
+    box-shadow: 0 4px 12px rgba(255, 122, 89, 0.3) !important;
     text-align: center !important;
-    display: inline-block !important;
-    margin-top: auto !important;
 }
 
-.related.products .button:hover {
-    background: #ff7875 !important;
-    transform: none !important;
-    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3) !important;
+.related.products .button:hover,
+.related.products .product-add-to-cart:hover {
+    background: #ff6a45 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px rgba(255, 122, 89, 0.4) !important;
+    color: #fff !important;
+}
+
+/* Rating if present */
+.related.products .star-rating {
+    font-size: 0.85rem !important;
+    margin: 0 12px 8px !important;
+}
+
+.related.products .star-rating span {
+    color: #fbbf24 !important;
 }
 
 /* Responsive Design */
@@ -536,6 +559,7 @@
 
     .related.products ul.products {
         grid-template-columns: repeat(4, 1fr) !important;
+        gap: 5px !important;
     }
 }
 
@@ -580,6 +604,7 @@
 
     .related.products ul.products {
         grid-template-columns: repeat(3, 1fr) !important;
+        gap: 5px !important;
     }
 }
 
@@ -614,5 +639,6 @@
 
     .related.products ul.products {
         grid-template-columns: repeat(2, 1fr) !important;
+        gap: 5px !important;
     }
 }
