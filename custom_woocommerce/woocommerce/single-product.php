@@ -31,6 +31,22 @@ get_header( 'shop' );
 				 * @hooked woocommerce_show_product_images - 20
 				 */
 				do_action( 'woocommerce_before_single_product_summary' );
+				
+				// Display product video if available
+				global $product;
+				$video_id = get_post_meta($product->get_id(), '_product_video_id', true);
+				if ($video_id) {
+					$video_url = wp_get_attachment_url($video_id);
+					if ($video_url) {
+						echo '<div class="product-video-container">';
+						echo '<h3 class="video-gallery-title"><span class="video-icon">▶</span> Video Gallery</h3>';
+						echo '<video class="product-video" controls>';
+						echo '<source src="' . esc_url($video_url) . '" type="' . esc_attr(get_post_mime_type($video_id)) . '">';
+						echo 'Your browser does not support the video tag.';
+						echo '</video>';
+						echo '</div>';
+					}
+				}
 				?>
 			</div>
 

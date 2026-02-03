@@ -867,6 +867,18 @@ function custom_woocommerce_add_product_form_shortcode()
                         }
                     }
                     
+                    // Handle video upload
+                    if (!empty($_FILES['cw_product_video']['name'])) {
+                        require_once ABSPATH . 'wp-admin/includes/file.php';
+                        require_once ABSPATH . 'wp-admin/includes/image.php';
+                        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+                        $video_attachment_id = media_handle_upload('cw_product_video', $product_id);
+                        if (!is_wp_error($video_attachment_id)) {
+                            update_post_meta($product_id, '_product_video_id', $video_attachment_id);
+                        }
+                    }
+                    
                     // Save again with all updates
                     $product->save();
 
@@ -910,6 +922,15 @@ function custom_woocommerce_add_product_form_shortcode()
             <div class="cw-gallery-preview" id="cw-gallery-preview"></div>
             <p style="color: #666; font-size: 0.9rem; margin: 8px 0 0;">
                 <?php esc_html_e('You can select multiple images for the product gallery', 'custom-woocommerce'); ?>
+            </p>
+            
+            <label class="cw-image-label" style="margin-top: 20px;">
+                <?php esc_html_e('Product Video (Optional)', 'custom-woocommerce'); ?>
+            </label>
+            <input type="file" id="cw-product-video" name="cw_product_video" accept="video/*">
+            <div class="cw-video-preview" id="cw-video-preview"></div>
+            <p style="color: #666; font-size: 0.9rem; margin: 8px 0 0;">
+                <?php esc_html_e('Upload a video to showcase your product', 'custom-woocommerce'); ?>
             </p>
         </div>
 

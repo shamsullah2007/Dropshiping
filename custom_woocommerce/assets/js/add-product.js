@@ -77,4 +77,43 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // Video preview
+    const videoInput = document.querySelector('#cw-product-video');
+    const videoPreview = document.querySelector('#cw-video-preview');
+
+    if (videoInput && videoPreview) {
+        videoInput.addEventListener('change', () => {
+            // Clear previous preview
+            videoPreview.innerHTML = '';
+
+            const file = videoInput.files && videoInput.files[0];
+            if (!file) {
+                return;
+            }
+
+            // Check if it's a video file
+            if (!file.type.startsWith('video/')) {
+                alert('Please select a valid video file');
+                videoInput.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const video = document.createElement('video');
+                video.controls = true;
+                video.style.cssText = `
+                    width: 100%;
+                    height: auto;
+                    max-height: 300px;
+                    border-radius: 4px;
+                `;
+                video.src = event.target.result;
+
+                videoPreview.appendChild(video);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
 });
