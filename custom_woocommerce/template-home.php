@@ -133,11 +133,17 @@ get_header();
                 <div class="reviews-carousel" data-carousel-id="reviews">
                     <div class="carousel-track">
                         <?php
-                        $reviews = get_comments([
-                            'post_type' => 'product',
-                            'status' => 'approve',
-                            'number' => 12,
-                        ]);
+                        // Use the helper function from functions.php
+                        $reviews = custom_woocommerce_get_product_reviews(12);
+                        
+                        if (empty($reviews)) :
+                        ?>
+                            <div class="no-reviews-message">
+                                <p><?php esc_html_e('No approved customer reviews yet. Be the first to leave a review!', 'custom-woocommerce'); ?></p>
+                            </div>
+                        <?php
+                        endif;
+                        
                         foreach ($reviews as $review) :
                             $rating = intval(get_comment_meta($review->comment_ID, 'rating', true));
                         ?>

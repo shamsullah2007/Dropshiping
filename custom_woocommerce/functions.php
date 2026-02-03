@@ -42,6 +42,51 @@ function custom_woocommerce_flush_rewrite_rules()
 }
 add_action('init', 'custom_woocommerce_flush_rewrite_rules', 999);
 
+/**
+ * Get product reviews for display
+ * 
+ * @param int $limit Number of reviews to fetch
+ * @return array Array of comment objects representing product reviews
+ */
+function custom_woocommerce_get_product_reviews($limit = 12) {
+    global $wpdb;
+    
+    // Query for WooCommerce product reviews with ratings
+    // WooCommerce stores reviews in comments table but filters them with comment_type
+    $reviews = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT c.* FROM {$wpdb->comments} c
+            INNER JOIN {$wpdb->posts} p ON c.comment_post_ID = p.ID
+            WHERE p.post_type = 'product'
+            AND c.comment_approved = 1
+            AND (c.comment_type = 'review' OR c.comment_type = '')
+            ORDER BY c.comment_date DESC
+            LIMIT %d",
+            $limit
+        )
+    );
+    
+    // Convert to comment objects and filter by rating
+    if ( ! empty( $reviews ) ) {
+        $reviews = array_map( function( $review ) {
+            return get_comment( $review->comment_ID );
+        }, $reviews );
+        
+        // Filter to only include comments with ratings
+        $reviews = array_filter( $reviews, function( $review ) {
+            $rating = get_comment_meta( $review->comment_ID, 'rating', true );
+            return ! empty( $rating ) && $rating > 0;
+        });
+        
+        $reviews = array_values( $reviews );
+    }
+    
+    // Debug: Log the review count
+    error_log( "Custom WooCommerce: Found " . count( $reviews ) . " approved reviews with ratings" );
+    
+    return $reviews;
+}
+
 // Redirect default WordPress login to custom login page
 function redirect_wp_login_to_custom_page() {
     global $post;
