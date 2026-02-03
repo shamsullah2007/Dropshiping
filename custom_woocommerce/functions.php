@@ -326,6 +326,13 @@ function custom_products_grid_shortcode($atts) {
             // Price
             echo '<div class="custom-product-price">' . $product->get_price_html() . '</div>';
             
+            // Product rating
+            if (wc_product_sku_enabled() || $product->get_rating_count()) {
+                echo '<div class="custom-product-rating">';
+                echo wc_get_rating_html($product->get_average_rating(), $product->get_review_count());
+                echo '</div>';
+            }
+            
             // Add to cart button with WooCommerce AJAX functionality
             $add_to_cart_url = $product->add_to_cart_url();
             $add_to_cart_classes = 'custom-add-to-cart button add_to_cart_button ajax_add_to_cart';

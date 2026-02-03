@@ -1393,6 +1393,22 @@ a:hover {
     font-size: 1.1rem;
 }
 
+.custom-product-rating {
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.custom-product-rating .star-rating {
+    font-size: 0.9rem !important;
+}
+
+.custom-product-rating .star-rating span {
+    color: #fbbf24;
+}
+
 .custom-add-to-cart {
     display: block;
     width: 100%;
