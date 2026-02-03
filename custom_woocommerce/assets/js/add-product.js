@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Video preview
+    // Multiple videos preview
     const videoInput = document.querySelector('#cw-product-video');
     const videoPreview = document.querySelector('#cw-video-preview');
 
@@ -87,33 +87,66 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear previous preview
             videoPreview.innerHTML = '';
 
-            const file = videoInput.files && videoInput.files[0];
-            if (!file) {
+            const files = videoInput.files;
+            if (!files || files.length === 0) {
                 return;
             }
 
-            // Check if it's a video file
-            if (!file.type.startsWith('video/')) {
-                alert('Please select a valid video file');
-                videoInput.value = '';
-                return;
-            }
+            // Display each selected video
+            Array.from(files).forEach((file, index) => {
+                // Check if it's a video file
+                if (!file.type.startsWith('video/')) {
+                    alert('Please select only valid video files');
+                    return;
+                }
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const video = document.createElement('video');
-                video.controls = true;
-                video.style.cssText = `
-                    width: 100%;
-                    height: auto;
-                    max-height: 300px;
-                    border-radius: 4px;
-                `;
-                video.src = event.target.result;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const videoWrapper = document.createElement('div');
+                    videoWrapper.className = 'cw-video-item';
+                    videoWrapper.style.cssText = `
+                        display: inline-block;
+                        width: 180px;
+                        margin: 8px;
+                        border: 2px solid #e5e5e5;
+                        border-radius: 4px;
+                        overflow: hidden;
+                        background: #000;
+                    `;
 
-                videoPreview.appendChild(video);
-            };
-            reader.readAsDataURL(file);
+                    const video = document.createElement('video');
+                    video.controls = true;
+                    video.muted = true;
+                    video.style.cssText = `
+                        width: 100%;
+                        height: auto;
+                        display: block;
+                    `;
+                    video.src = event.target.result;
+
+                    // Add video number badge
+                    const badge = document.createElement('span');
+                    badge.textContent = `Video ${index + 1}`;
+                    badge.style.cssText = `
+                        position: absolute;
+                        top: 4px;
+                        left: 4px;
+                        background: rgba(255, 77, 79, 0.9);
+                        color: #fff;
+                        padding: 4px 8px;
+                        border-radius: 3px;
+                        font-size: 0.75rem;
+                        font-weight: 600;
+                        z-index: 10;
+                    `;
+
+                    videoWrapper.style.position = 'relative';
+                    videoWrapper.appendChild(badge);
+                    videoWrapper.appendChild(video);
+                    videoPreview.appendChild(videoWrapper);
+                };
+                reader.readAsDataURL(file);
+            });
         });
     }
 });

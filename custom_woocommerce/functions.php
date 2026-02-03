@@ -283,6 +283,7 @@ function custom_woocommerce_add_shop_checkout_to_menu($items, $args) {
 function custom_woocommerce_enqueue_assets()
 {
     wp_enqueue_style('custom-woocommerce-style', get_stylesheet_uri(), [], '1.0.0');
+    wp_enqueue_style('custom-woocommerce-cj-single-product', get_template_directory_uri() . '/assets/css/cj-single-product.css', [], '1.0.0');
     wp_enqueue_script(
         'custom-woocommerce-theme',
         get_template_directory_uri() . '/assets/js/theme.js',
@@ -295,6 +296,13 @@ function custom_woocommerce_enqueue_assets()
         wp_enqueue_script(
             'custom-woocommerce-single-product',
             get_template_directory_uri() . '/assets/js/single-product.js',
+            [],
+            '1.0.0',
+            true
+        );
+        wp_enqueue_script(
+            'custom-woocommerce-cj-product',
+            get_template_directory_uri() . '/assets/js/cj-single-product.js',
             [],
             '1.0.0',
             true
@@ -867,15 +875,44 @@ function custom_woocommerce_add_product_form_shortcode()
                         }
                     }
                     
-                    // Handle video upload
-                    if (!empty($_FILES['cw_product_video']['name'])) {
+                    // Handle multiple videos upload
+                    if (isset($_FILES['cw_product_videos']) && !empty($_FILES['cw_product_videos']['name'][0])) {
                         require_once ABSPATH . 'wp-admin/includes/file.php';
                         require_once ABSPATH . 'wp-admin/includes/image.php';
                         require_once ABSPATH . 'wp-admin/includes/media.php';
 
-                        $video_attachment_id = media_handle_upload('cw_product_video', $product_id);
-                        if (!is_wp_error($video_attachment_id)) {
-                            update_post_meta($product_id, '_product_video_id', $video_attachment_id);
+                        $video_ids = [];
+                        $files = $_FILES['cw_product_videos'];
+                        
+                        // Log the attempt
+                        error_log('VIDEO UPLOAD: Attempting to upload ' . count($files['name']) . ' videos for product ' . $product_id);
+                        
+                        foreach ($files['name'] as $key => $value) {
+                            if (!empty($files['name'][$key]) && $files['error'][$key] === UPLOAD_ERR_OK) {
+                                $file = [
+                                    'name'     => $files['name'][$key],
+                                    'type'     => $files['type'][$key],
+                                    'tmp_name' => $files['tmp_name'][$key],
+                                    'error'    => $files['error'][$key],
+                                    'size'     => $files['size'][$key]
+                                ];
+                                
+                                $_FILES = ['upload_file' => $file];
+                                
+                                $video_attachment_id = media_handle_upload('upload_file', $product_id);
+                                
+                                if (!is_wp_error($video_attachment_id)) {
+                                    $video_ids[] = $video_attachment_id;
+                                    error_log('VIDEO UPLOAD: Successfully uploaded video ID ' . $video_attachment_id);
+                                } else {
+                                    error_log('VIDEO UPLOAD ERROR: ' . $video_attachment_id->get_error_message());
+                                }
+                            }
+                        }
+                        
+                        if (!empty($video_ids)) {
+                            update_post_meta($product_id, '_product_video_ids', $video_ids);
+                            error_log('VIDEO UPLOAD: Saved ' . count($video_ids) . ' video IDs to product meta');
                         }
                     }
                     
@@ -925,12 +962,12 @@ function custom_woocommerce_add_product_form_shortcode()
             </p>
             
             <label class="cw-image-label" style="margin-top: 20px;">
-                <?php esc_html_e('Product Video (Optional)', 'custom-woocommerce'); ?>
+                <?php esc_html_e('Product Videos (Optional)', 'custom-woocommerce'); ?>
             </label>
-            <input type="file" id="cw-product-video" name="cw_product_video" accept="video/*">
+            <input type="file" id="cw-product-video" name="cw_product_videos[]" accept="video/*" multiple>
             <div class="cw-video-preview" id="cw-video-preview"></div>
             <p style="color: #666; font-size: 0.9rem; margin: 8px 0 0;">
-                <?php esc_html_e('Upload a video to showcase your product', 'custom-woocommerce'); ?>
+                <?php esc_html_e('Upload multiple videos to showcase your product (videos will play without sound)', 'custom-woocommerce'); ?>
             </p>
         </div>
 
@@ -1268,3 +1305,109 @@ function custom_woocommerce_get_categories()
     wp_send_json_success($cat_list);
 }
 add_action('wp_ajax_cw_get_categories', 'custom_woocommerce_get_categories');
+/**
+ * Custom Product Display - CJ Dropshipping Style
+ * Shortcode: [cw_product_display]
+ */
+function custom_woocommerce_product_display_shortcode($atts) {
+    if (!is_product()) {
+        return '<p>This shortcode can only be used on product pages.</p>';
+    }
+
+    global $product;
+    
+    ob_start();
+    ?>
+    <div class="cj-single-product-page">
+        <div class="cj-product-container">
+            <!-- LEFT SECTION: GALLERY & MEDIA -->
+            <div class="cj-media-section">
+                <!-- Gallery Thumbnails Column -->
+                <div class="cj-gallery-thumbnails">
+                    <?php
+                    $product_id = $product->get_id();
+                    $image_id = $product->get_image_id();
+                    $gallery_ids = $product->get_gallery_image_ids();
+                    $video_ids = get_post_meta($product_id, '_product_video_ids', true);
+                    
+                    // Add main image to gallery
+                    $all_items = [];
+                    if ($image_id) {
+                        $all_items[] = ['type' => 'image', 'id' => $image_id];
+                    }
+                    
+                    // Add gallery images
+                    if (!empty($gallery_ids)) {
+                        foreach ($gallery_ids as $gid) {
+                            $all_items[] = ['type' => 'image', 'id' => $gid];
+                        }
+                    }
+                    
+                    // Add videos
+                    if (!empty($video_ids) && is_array($video_ids)) {
+                        foreach ($video_ids as $vid) {
+                            $all_items[] = ['type' => 'video', 'id' => $vid];
+                        }
+                    }
+                    
+                    // Display thumbnails
+                    if (!empty($all_items)) {
+                        foreach ($all_items as $index => $item) {
+                            if ($item['type'] === 'image') {
+                                $thumb_url = wp_get_attachment_image_url($item['id'], 'thumbnail');
+                                $full_url = wp_get_attachment_image_url($item['id'], 'large');
+                                echo '<div class="cj-thumb-item active-thumb" data-index="' . $index . '" data-type="image" data-id="' . $item['id'] . '" data-url="' . esc_attr($full_url) . '">';
+                                echo '<img src="' . esc_attr($thumb_url) . '" alt="Product" class="cj-thumb-img">';
+                                echo '</div>';
+                            } else if ($item['type'] === 'video') {
+                                $video_url = wp_get_attachment_url($item['id']);
+                                echo '<div class="cj-thumb-item video-thumb" data-index="' . $index . '" data-type="video" data-id="' . $item['id'] . '" data-url="' . esc_attr($video_url) . '">';
+                                echo '<div class="cj-thumb-img cj-video-thumb">';
+                                echo '<span class="cj-play-icon">▶</span>';
+                                echo '</div>';
+                                echo '</div>';
+                            }
+                        }
+                    }
+                    ?>
+                </div>
+
+                <!-- Main Image/Video Display -->
+                <div class="cj-main-media">
+                    <div class="cj-image-container">
+                        <?php if (!empty($all_items)) { ?>
+                            <?php 
+                            $first_item = $all_items[0];
+                            if ($first_item['type'] === 'image') {
+                                $main_img = wp_get_attachment_image_url($first_item['id'], 'large');
+                                echo '<img id="cj-main-image" src="' . esc_attr($main_img) . '" alt="Product" class="cj-main-img">';
+                                echo '<div class="cj-image-zoom" id="cj-image-zoom"></div>';
+                            } else if ($first_item['type'] === 'video') {
+                                $video_url = wp_get_attachment_url($first_item['id']);
+                                echo '<video id="cj-main-video" controls muted loop class="cj-main-video">';
+                                echo '<source src="' . esc_url($video_url) . '" type="' . esc_attr(get_post_mime_type($first_item['id'])) . '">';
+                                echo '</video>';
+                            }
+                            ?>
+                        <?php } else {
+                            echo '<div class="cj-no-image">No images available</div>';
+                        } ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT SECTION: PRODUCT INFO -->
+            <div class="cj-info-section">
+                <?php do_action('woocommerce_single_product_summary'); ?>
+            </div>
+        </div>
+
+        <!-- BELOW SECTION: DESCRIPTION, SPECS, REVIEWS -->
+        <div class="cj-product-below">
+            <?php do_action('woocommerce_after_single_product_summary'); ?>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('cw_product_display', 'custom_woocommerce_product_display_shortcode');

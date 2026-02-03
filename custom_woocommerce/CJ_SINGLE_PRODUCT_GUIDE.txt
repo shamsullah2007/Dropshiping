@@ -1,0 +1,156 @@
+// ============================================
+// CJ DROPSHIPPING CUSTOM SINGLE PRODUCT PAGE
+// ============================================
+
+📋 QUICK START GUIDE
+====================
+
+1. AUTOMATIC USAGE (Default)
+   - All products automatically display with the custom CJ Dropshipping layout
+   - No need for shortcodes
+   - Located at: /woocommerce/single-product.php
+
+2. MANUAL SHORTCODE OPTION
+   - Add this shortcode to any page/post to display a single product:
+   
+   [cw_product_display]
+   
+   - This will display the custom product page layout
+   - Only works when used on actual product pages
+
+3. BACKEND INTEGRATION
+   ✅ Video Upload Support
+      - Add multiple videos in Product Manager → Add Single Item
+      - Videos stored in WordPress media library
+      - Attached to post meta: _product_video_ids
+   
+   ✅ Gallery Images
+      - Upload multiple gallery images in the form
+      - Stored in WooCommerce gallery
+      
+   ✅ Product Information
+      - Title, Price, Description
+      - Category, SKU
+      - All standard WooCommerce fields
+
+4. PRODUCT DISPLAY FEATURES
+   LEFT SIDE (Gallery):
+   - Vertical thumbnail column (80px wide)
+   - Click any thumbnail to switch view
+   - Image thumbnails
+   - Video thumbnails with play icon
+   - Smooth fade transitions
+   - Sticky positioning on scroll
+   
+   RIGHT SIDE (Product Info):
+   - Title
+   - Price (Red color - #ff4d4f)
+   - Quantity selector
+   - Add to Cart button
+   - Rating & Reviews
+   - Product metadata
+   
+   MAIN IMAGE DISPLAY:
+   - Full-width image display
+   - Click to zoom (press Esc to close)
+   - Hover scale effect
+   - 1:1 aspect ratio
+   
+   BELOW SECTION:
+   - Product description
+   - Tabs (Description, Reviews, etc.)
+   - Related products
+   - Reviews with comments
+
+5. FILES CREATED/USED
+   ├── woocommerce/single-product.php
+   │   └── Custom template (automatically used for all products)
+   │
+   ├── assets/css/cj-single-product.css
+   │   └── All styling for layout, colors, animations
+   │
+   ├── assets/js/cj-single-product.js
+   │   └── Gallery interactions, zoom, thumbnail switching
+   │
+   └── functions.php
+       ├── Shortcode registration [cw_product_display]
+       ├── Video upload handling
+       ├── CSS/JS enqueuing
+       └── Backend integration
+
+6. HOW IT WORKS
+   
+   a) Product Creation:
+      - User adds product in Product Manager
+      - Uploads main image
+      - Uploads multiple gallery images
+      - Uploads multiple videos (optional)
+      - Form saves all to WordPress media + post meta
+   
+   b) Display on Frontend:
+      - template: woocommerce/single-product.php loads automatically
+      - Fetches product data:
+        * Main image: product->get_image_id()
+        * Gallery: product->get_gallery_image_ids()
+        * Videos: get_post_meta($id, '_product_video_ids')
+      - Displays in CJ layout
+      - JavaScript handles interactions
+   
+   c) User Interaction:
+      - Click thumbnail → switches to that image/video
+      - Hover image → slight zoom effect
+      - Click image → full zoom mode
+      - Press Esc → close zoom
+      - Add to Cart → standard WooCommerce process
+
+7. STYLING CUSTOMIZATION
+   
+   To change colors, edit cj-single-product.css:
+   
+   Red accent color: #ff4d4f
+   Background: #f5f5f5
+   Border color: #e5e5e5
+   Text color: #333
+   Muted text: #666
+   
+   Change these values to match your brand.
+
+8. RESPONSIVE BREAKPOINTS
+   
+   Desktop (>1024px):  Gallery 420px + Full content
+   Tablet (768-1024): Single column layout
+   Mobile (<768px):   Compact gallery (60px) + Vertical layout
+   
+   Automatically adapts to screen size.
+
+9. PERFORMANCE FEATURES
+   
+   ✓ Lazy loading images
+   ✓ Muted videos (no audio bandwidth)
+   ✓ Looped videos (auto-replay)
+   ✓ Smooth transitions
+   ✓ Debounced Add to Cart (prevents spam clicks)
+   ✓ Lightweight JavaScript (no dependencies)
+
+10. TROUBLESHOOTING
+    
+    Videos not showing?
+    → Check that videos are uploaded via Product Manager
+    → Verify in wp_postmeta table: _product_video_ids
+    
+    Gallery thumbnails not clickable?
+    → Check browser console for JS errors
+    → Ensure cj-single-product.js is enqueued
+    
+    Images not loading?
+    → Verify media library has images attached
+    → Check WordPress permissions
+    
+    Layout broken?
+    → Clear cache
+    → Verify cj-single-product.css is loaded
+    → Check in browser DevTools: Network tab
+
+====================
+END OF SETUP GUIDE
+====================
