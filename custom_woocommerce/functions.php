@@ -131,6 +131,18 @@ function custom_woocommerce_primary_menu_fallback() {
     echo '</ul>';
 }
 
+// Redirect default WooCommerce shop to custom shop page
+add_action('template_redirect', 'custom_redirect_shop_to_custom');
+function custom_redirect_shop_to_custom() {
+    if (function_exists('is_shop') && is_shop() && !is_page('shop-2')) {
+        $shop_page = get_page_by_path('shop-2');
+        if ($shop_page) {
+            wp_redirect(get_permalink($shop_page->ID), 301);
+            exit;
+        }
+    }
+}
+
 // Add Shop and Checkout links to the primary menu
 add_filter('wp_nav_menu_items', 'custom_woocommerce_add_shop_checkout_to_menu', 10, 2);
 function custom_woocommerce_add_shop_checkout_to_menu($items, $args) {
@@ -139,11 +151,13 @@ function custom_woocommerce_add_shop_checkout_to_menu($items, $args) {
         return $items;
     }
     
-    $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/shop/');
+    // Use custom shop page instead of WooCommerce shop
+    $shop_page = get_page_by_path('shop-2'); // Get the custom shop page
+    $shop_url = $shop_page ? get_permalink($shop_page->ID) : home_url('/shop-2/');
     $checkout_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('checkout') : home_url('/checkout/');
     
     // Check if we're on shop or checkout page for active state
-    $shop_active = (function_exists('is_shop') && is_shop()) || is_page('shop') ? 'current-menu-item' : '';
+    $shop_active = is_page('shop-2') ? 'current-menu-item' : '';
     $checkout_active = (function_exists('is_checkout') && is_checkout()) || is_page('checkout') ? 'current-menu-item' : '';
     
     // Add Shop link at the beginning
@@ -244,6 +258,115 @@ function custom_woocommerce_remove_account_dashboard_notice($content)
     return '';
 }
 add_filter('woocommerce_account_dashboard', 'custom_woocommerce_remove_account_dashboard_notice', 10, 1);
+
+// Remove WooCommerce shop elements
+remove_action('woocommerce_before_main_content', 'woocommerce_breadcrumb', 20);
+remove_action('woocommerce_before_shop_loop', 'woocommerce_result_count', 20);
+remove_action('woocommerce_before_shop_loop', 'woocommerce_catalog_ordering', 30);
+
+// Custom Products Grid Shortcode
+function custom_products_grid_shortcode($atts) {
+    $atts = shortcode_atts([
+        'per_page' => 40, // 8 rows × 5 columns = 40 products
+    ], $atts);
+
+    $paged = (get_query_var('paged')) ? get_query_var('paged') : 1;
+
+    $args = [
+        'post_type' => 'product',
+        'posts_per_page' => $atts['per_page'],
+        'paged' => $paged,
+        'post_status' => 'publish',
+        'orderby' => 'date',
+        'order' => 'DESC',
+    ];
+
+    $products = new WP_Query($args);
+
+    ob_start();
+
+    if ($products->have_posts()) {
+        echo '<div class="custom-products-grid">';
+        
+        while ($products->have_posts()) {
+            $products->the_post();
+            global $product;
+            
+            // Get product discount percentage
+            $regular_price = $product->get_regular_price();
+            $sale_price = $product->get_sale_price();
+            $discount = 0;
+            
+            if ($sale_price && $regular_price) {
+                $discount = round((($regular_price - $sale_price) / $regular_price) * 100);
+            }
+            
+            echo '<div class="custom-product-item">';
+            
+            // Discount badge
+            if ($discount > 0) {
+                echo '<div class="discount-badge">Up to ' . $discount . '% off</div>';
+            }
+            
+            // Product image
+            echo '<a href="' . esc_url(get_permalink()) . '" class="custom-product-image">';
+            echo $product->get_image('full');
+            echo '</a>';
+            
+            // Product info
+            echo '<div class="custom-product-info">';
+            echo '<h3 class="custom-product-title"><a href="' . esc_url(get_permalink()) . '">' . esc_html(get_the_title()) . '</a></h3>';
+            
+            // Lists count (SKU display)
+            $sku = $product->get_sku();
+            if ($sku) {
+                echo '<div class="custom-product-lists">Lists: ' . esc_html($sku) . '</div>';
+            }
+            
+            // Price
+            echo '<div class="custom-product-price">' . $product->get_price_html() . '</div>';
+            
+            // Add to cart button with WooCommerce AJAX functionality
+            $add_to_cart_url = $product->add_to_cart_url();
+            $add_to_cart_classes = 'custom-add-to-cart button add_to_cart_button ajax_add_to_cart';
+            
+            echo '<a href="' . esc_url($add_to_cart_url) . '" 
+                     class="' . esc_attr($add_to_cart_classes) . '" 
+                     data-product_id="' . esc_attr($product->get_id()) . '" 
+                     data-product_sku="' . esc_attr($product->get_sku()) . '" 
+                     data-quantity="1" 
+                     aria-label="' . esc_attr($product->add_to_cart_description()) . '" 
+                     rel="nofollow">Add to cart</a>';
+            echo '</div>';
+            
+            echo '</div>';
+        }
+        
+        echo '</div>';
+        
+        // Pagination
+        if ($products->max_num_pages > 1) {
+            echo '<div class="custom-pagination">';
+            echo paginate_links([
+                'base' => str_replace(999999999, '%#%', esc_url(get_pagenum_link(999999999))),
+                'format' => '?paged=%#%',
+                'current' => max(1, $paged),
+                'total' => $products->max_num_pages,
+                'prev_text' => '<<',
+                'next_text' => '>>',
+                'type' => 'list',
+            ]);
+            echo '</div>';
+        }
+    } else {
+        echo '<p>' . esc_html__('No products found.', 'custom-woocommerce') . '</p>';
+    }
+
+    wp_reset_postdata();
+
+    return ob_get_clean();
+}
+add_shortcode('custom_products_grid', 'custom_products_grid_shortcode');
 
 function custom_woocommerce_send_otp_email($email, $otp, $subject)
 {
