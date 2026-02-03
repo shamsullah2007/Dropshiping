@@ -419,15 +419,40 @@
 
 /* Related Products Grid - Same as Custom Shop Page */
 .related.products {
-    margin-top: 40px !important;
-    padding-top: 40px !important;
-    border-top: 1px solid #e5e5e5 !important;
+    margin-top: 60px !important;
+    margin-left: -20px !important;
+    margin-right: -20px !important;
+    margin-bottom: -100px !important;
+    padding: 40px 20px !important;
+    border-top: none !important;
+    border: none !important;
+    background: #fff !important;
+    width: 100% !important;
+}
+
+/* Hide default WooCommerce styling */
+.related.products ul.products li.product {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.related.products ul.products li.product:before {
+    display: none !important;
+}
+
+.related.products .product-category,
+.related.products .product-tag {
+    display: none !important;
 }
 
 .related.products h2 {
-    font-size: 1.6rem !important;
+    font-size: 2rem !important;
     font-weight: 700 !important;
     color: #1d1d1f !important;
+    margin: 0 0 30px !important;
+    padding: 0 !important;
+    max-width: 1400px !important;
+}
     margin: 0 0 30px !important;
     padding: 0 !important;
 }
@@ -439,7 +464,8 @@
     gap: 5px !important;
     list-style: none !important;
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
+    max-width: 1400px !important;
 }
 
 .related.products ul.products li.product {
