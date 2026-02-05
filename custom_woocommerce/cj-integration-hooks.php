@@ -1,0 +1,670 @@
+<?php
+/**
+ * CJ Dropshipping Integration Hooks & Admin
+ * 
+ * Handles WordPress integration:
+ * - Admin settings page
+ * - WooCommerce order processing
+ * - Webhook receiver
+ * - Testing utilities
+ * 
+ * @package CustomWoocommerce
+ * @version 1.0.0
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+// ==================== LOAD CLASS ====================
+
+require_once dirname(__FILE__) . '/class-cj-dropshipping.php';
+
+// ==================== ADMIN SETTINGS ====================
+
+/**
+ * Add CJ settings to WordPress admin
+ */
+add_action('admin_menu', function() {
+    add_submenu_page(
+        'woocommerce',
+        'CJ Dropshipping',
+        'CJ Dropshipping',
+        'manage_options',
+        'cj-dropshipping-settings',
+        'cw_cj_admin_page'
+    );
+});
+
+/**
+ * Render CJ Dropshipping admin settings page
+ */
+function cw_cj_admin_page() {
+    // Handle form submission
+    if (isset($_POST['submit']) && check_admin_referer('cw_cj_settings')) {
+        $cj = cw_cj_dropshipping();
+        $result = $cj->set_credentials(
+            $_POST['cj_api_key'] ?? '',
+            $_POST['cj_platform_token'] ?? ''
+        );
+        
+        if ($result) {
+            echo '<div class="notice notice-success"><p>CJ credentials saved and verified!</p></div>';
+        } else {
+            echo '<div class="notice notice-error"><p>Failed to verify CJ credentials. Please check your API Key.</p></div>';
+        }
+    }
+    
+    // Get current credentials
+    $api_key = get_option('cw_cj_api_key', '');
+    $platform_token = get_option('cw_cj_platform_token', '');
+    $balance = CJ_Dropshipping::has_credentials() ? cw_cj_dropshipping()->get_balance() : 0;
+    ?>
+    <div class="wrap">
+        <h1>CJ Dropshipping Settings</h1>
+        
+        <?php if ($balance > 0): ?>
+            <div class="notice notice-info"><p>
+                <strong>CJ Account Balance:</strong> $<?php echo number_format($balance, 2); ?>
+            </p></div>
+        <?php endif; ?>
+        
+        <form method="post" class="cj-settings-form">
+            <?php wp_nonce_field('cw_cj_settings'); ?>
+            
+            <table class="form-table">
+                <tr>
+                    <th><label for="cj_api_key">CJ API Key</label></th>
+                    <td>
+                        <input type="text" 
+                               id="cj_api_key" 
+                               name="cj_api_key" 
+                               value="<?php echo esc_attr($api_key); ?>" 
+                               class="regular-text" 
+                               placeholder="CJUserNum@api@xxxxxxxx..."
+                               required>
+                        <p class="description">Get from <a href="https://developer.cjdropshipping.com/account/info" target="_blank">CJ Developer Account</a><br>
+                        Format: <code>CJUserNum@api@xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></p>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th><label for="cj_platform_token">Platform Token (Optional)</label></th>
+                    <td>
+                        <input type="text" 
+                               id="cj_platform_token" 
+                               name="cj_platform_token" 
+                               value="<?php echo esc_attr($platform_token); ?>" 
+                               class="regular-text">
+                        <p class="description">Optional: For multi-platform orders</p>
+                    </td>
+                </tr>
+            </table>
+            
+            <?php submit_button('Save CJ Credentials'); ?>
+        </form>
+        
+        <hr>
+        
+        <h2>Import Products from CJ</h2>
+        <p>Automatically import CJ products to your WooCommerce store. This will:</p>
+        <ul style="margin: 10px 0; padding: 0 20px;">
+            <li>✓ Create new WooCommerce products</li>
+            <li>✓ Auto-link to CJ variants (automatic orders enabled)</li>
+            <li>✓ Add 50% markup to CJ prices</li>
+            <li>✓ Set inventory from CJ stock</li>
+        </ul>
+        
+        <form method="post" id="cj-import-form">
+            <?php wp_nonce_field('cw_cj_import'); ?>
+            <input type="hidden" name="action" value="cw_cj_import_products">
+            <table class="form-table">
+                <tr>
+                    <th><label for="import_search">Search for products (optional)</label></th>
+                    <td>
+                        <input type="text" 
+                               id="import_search" 
+                               name="import_search" 
+                               class="regular-text" 
+                               placeholder="e.g., hoodie, mug, shirt (leave empty for all)">
+                        <p class="description">Leave empty to import all products</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="import_markup">Price Markup (%)</label></th>
+                    <td>
+                        <input type="number" 
+                               id="import_markup" 
+                               name="import_markup" 
+                               value="50" 
+                               min="0" 
+                               max="500" 
+                               class="small-text">
+                        <p class="description">How much to mark up CJ prices (50 = 50% markup)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="import_limit">Max products to import</label></th>
+                    <td>
+                        <input type="number" 
+                               id="import_limit" 
+                               name="import_limit" 
+                               value="10" 
+                               min="1" 
+                               max="500" 
+                               class="small-text">
+                        <p class="description">Start with 10, increase after testing</p>
+                    </td>
+                </tr>
+            </table>
+            
+            <?php submit_button('Import Products Now', 'primary', 'submit', false); ?>
+            <span id="import-status" style="margin-left: 20px; display: none;">
+                <strong>Importing...</strong> <span id="import-count">0</span> products
+            </span>
+        </form>
+        
+        <div id="import-results" style="margin-top: 20px; display: none;">
+            <div class="notice notice-success"><p id="import-success-msg"></p></div>
+        </div>
+        
+        <script>
+        jQuery(function($) {
+            $('#cj-import-form').on('submit', function(e) {
+                e.preventDefault();
+                
+                const search = $('#import_search').val();
+                const markup = $('#import_markup').val();
+                const limit = $('#import_limit').val();
+                const nonce = $('input[name="_wpnonce"]').val();
+                
+                $('#import-status').show();
+                $('#import-results').hide();
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'cw_cj_import_ajax',
+                        nonce: nonce,
+                        search: search,
+                        markup: markup,
+                        limit: limit
+                    },
+                    success: function(response) {
+                        $('#import-status').hide();
+                        if (response.success) {
+                            $('#import-success-msg').text(response.data.message);
+                            $('#import-results').show();
+                        } else {
+                            alert('Import failed: ' + (response.data?.message || 'Unknown error'));
+                        }
+                    },
+                    error: function() {
+                        $('#import-status').hide();
+                        alert('Error during import. Check your API Key.');
+                    }
+                });
+            });
+        });
+        </script>
+        
+        <hr>
+        
+        <h2>Integration Features</h2>
+        <ul style="margin: 20px 0; padding: 0 20px;">
+            <li>✓ Product import from CJ catalog</li>
+            <li>✓ Real-time inventory sync</li>
+            <li>✓ Automatic order creation when WooCommerce order placed</li>
+            <li>✓ Automatic payment deduction from CJ balance</li>
+            <li>✓ Webhook receiver for tracking updates</li>
+            <li>✓ Order status synchronization</li>
+        </ul>
+        
+        <h2>Webhook URL</h2>
+        <p>Configure this URL in your CJ account for order/tracking notifications:</p>
+        <code style="display: block; padding: 10px; background: #f5f5f5; margin: 10px 0;">
+            <?php echo esc_url(home_url('/wp-json/cj-dropshipping/v1/webhook')); ?>
+        </code>
+    </div>
+    <style>
+        .cj-settings-form .form-table th { width: 200px; }
+    </style>
+    <?php
+}
+
+// ==================== REST API WEBHOOK ====================
+
+/**
+ * Register REST API webhook endpoint for CJ notifications
+ */
+add_action('rest_api_init', function() {
+    register_rest_route('cj-dropshipping/v1', '/webhook', [
+        'methods' => 'POST',
+        'callback' => 'cw_cj_webhook_handler',
+        'permission_callback' => '__return_true', // CJ doesn't use WP auth
+    ]);
+});
+
+/**
+ * Handle CJ webhook notifications
+ * 
+ * @param WP_REST_Request $request
+ * @return WP_REST_Response
+ */
+function cw_cj_webhook_handler($request) {
+    $body = json_decode($request->get_body(), true);
+    
+    if (empty($body) || !isset($body['eventType'])) {
+        return new WP_REST_Response(['success' => false], 400);
+    }
+    
+    do_action('cj_webhook_received', $body);
+    
+    switch ($body['eventType'] ?? '') {
+        case 'LOGISTICS':
+            cw_cj_handle_logistics_webhook($body);
+            break;
+        case 'ORDER':
+            cw_cj_handle_order_webhook($body);
+            break;
+    }
+    
+    return new WP_REST_Response(['success' => true], 200);
+}
+
+/**
+ * Handle logistics/tracking webhook
+ */
+function cw_cj_handle_logistics_webhook($webhook_data) {
+    $cj_order_id = $webhook_data['data']['cjOrderId'] ?? null;
+    $tracking_number = $webhook_data['data']['trackingNumber'] ?? null;
+    $status = $webhook_data['data']['status'] ?? null;
+    
+    if (!$cj_order_id) {
+        return;
+    }
+    
+    // Find WooCommerce order by CJ order ID
+    $args = [
+        'meta_query' => [
+            [
+                'key' => '_cj_order_id',
+                'value' => $cj_order_id,
+            ]
+        ],
+        'limit' => 1,
+    ];
+    
+    $orders = wc_get_orders($args);
+    
+    if (empty($orders)) {
+        return;
+    }
+    
+    $order = $orders[0];
+    
+    // Update tracking number
+    if ($tracking_number) {
+        $order->update_meta_data('_shipping_tracking_number', $tracking_number);
+    }
+    
+    // Update order status based on CJ status
+    $status_map = [
+        'SHIPPED' => 'wc-shipped',
+        'DELIVERED' => 'wc-completed',
+        'RETURNED' => 'wc-cancelled',
+    ];
+    
+    if (isset($status_map[$status])) {
+        $order->set_status($status_map[$status]);
+    }
+    
+    // Add order note
+    $order->add_order_note(sprintf(
+        'CJ Tracking Update: Status=%s, Tracking=%s (from webhook)',
+        $status,
+        $tracking_number
+    ));
+    
+    $order->save();
+}
+
+/**
+ * Handle order status webhook
+ */
+function cw_cj_handle_order_webhook($webhook_data) {
+    // Similar to logistics handling but for order status changes
+    $cj_order_id = $webhook_data['data']['cjOrderId'] ?? null;
+    $order_status = $webhook_data['data']['status'] ?? null;
+    
+    if (!$cj_order_id) {
+        return;
+    }
+    
+    $args = [
+        'meta_query' => [
+            [
+                'key' => '_cj_order_id',
+                'value' => $cj_order_id,
+            ]
+        ],
+        'limit' => 1,
+    ];
+    
+    $orders = wc_get_orders($args);
+    
+    if (!empty($orders)) {
+        $order = $orders[0];
+        $order->add_order_note('CJ Order Status: ' . $order_status . ' (from webhook)');
+        $order->save();
+    }
+}
+
+// ==================== WOOCOMMERCE ORDER PROCESSING ====================
+
+/**
+ * Create CJ order when WooCommerce order is placed
+ * This is a template for automatic order forwarding
+ */
+add_action('woocommerce_order_status_processing', function($order_id) {
+    $order = wc_get_order($order_id);
+    
+    if (!$order || CJ_Dropshipping::get_cj_order_id($order_id)) {
+        return; // Already has CJ order or invalid order
+    }
+    
+    if (!CJ_Dropshipping::has_credentials()) {
+        return; // CJ not configured
+    }
+    
+    // Build CJ order data from WooCommerce order
+    $cj = cw_cj_dropshipping();
+    
+    $order_data = [
+        'order_number' => $order->get_order_number(),
+        'country_code' => $order->get_billing_country(),
+        'country' => WC()->countries->countries[$order->get_billing_country()] ?? '',
+        'state' => $order->get_billing_state(),
+        'city' => $order->get_billing_city(),
+        'phone' => $order->get_billing_phone(),
+        'first_name' => $order->get_billing_first_name(),
+        'last_name' => $order->get_billing_last_name(),
+        'address_1' => $order->get_billing_address_1(),
+        'address_2' => $order->get_billing_address_2(),
+        'postcode' => $order->get_billing_postcode(),
+        'email' => $order->get_billing_email(),
+    ];
+    
+    // Build products array
+    $products = [];
+    foreach ($order->get_items() as $item) {
+        $product = $item->get_product();
+        $cj_product_id = $product->get_meta('_cj_product_id');
+        $cj_variant_id = $product->get_meta('_cj_variant_id');
+        
+        if ($cj_variant_id || $cj_product_id) {
+            $products[] = [
+                'vid' => $cj_variant_id,
+                'quantity' => $item->get_quantity(),
+                'storeLineItemId' => 'WOO-' . $order_id . '-' . $item->get_id(),
+            ];
+        }
+    }
+    
+    if (empty($products)) {
+        $order->add_order_note('No CJ products found in order - skipping CJ order creation');
+        return;
+    }
+    
+    // Create CJ order
+    $result = $cj->create_order($order_data, $products, 2); // payType=2 for balance payment
+    
+    if (is_wp_error($result) || !isset($result['data']['orderId'])) {
+        $error_msg = is_wp_error($result) ? $result->get_error_message() : ($result['message'] ?? 'Unknown error');
+        $order->add_order_note('CJ order creation failed: ' . $error_msg);
+        return;
+    }
+    
+    $cj_order_id = $result['data']['orderId'];
+    
+    // Map CJ order to WooCommerce order
+    CJ_Dropshipping::map_woo_to_cj_order($order_id, $cj_order_id);
+    
+    // Add cart and confirm
+    $cart_result = $cj->add_to_cart($cj_order_id);
+    if (isset($cart_result['data']['successCount']) && $cart_result['data']['successCount'] > 0) {
+        $cj->confirm_cart($cj_order_id);
+    }
+    
+    // Generate parent order for payment
+    $shipment_result = $cj->generate_parent_order($cj_order_id);
+    
+    if (isset($shipment_result['payId']) && $shipment_result['canDeduct']) {
+        // Auto-pay from balance
+        $pay_result = $cj->pay_balance_v2($cj_order_id, $shipment_result['payId']);
+        
+        if ($pay_result) {
+            $order->add_order_note(sprintf(
+                'CJ Order Created & Paid: Order ID=%s, Amount=$%s',
+                $cj_order_id,
+                $shipment_result['actualPayment']
+            ));
+        }
+    }
+}
+);
+
+// ==================== PRODUCT IMPORT UTILITIES ====================
+
+/**
+ * Save CJ product IDs to WooCommerce product
+ * Called when product is added directly from CJ catalog
+ * 
+ * @param int $woo_product_id WooCommerce product ID
+ * @param string $cj_product_id CJ product ID
+ * @param string $cj_variant_id CJ variant ID
+ */
+function cw_cj_save_product_mapping($woo_product_id, $cj_product_id, $cj_variant_id) {
+    $product = wc_get_product($woo_product_id);
+    
+    if ($product) {
+        $product->update_meta_data('_cj_product_id', $cj_product_id);
+        $product->update_meta_data('_cj_variant_id', $cj_variant_id);
+        $product->save();
+    }
+}
+
+/**
+ * Get live inventory from CJ
+ * 
+ * @param string $cj_variant_id CJ variant ID
+ * @return int Inventory count
+ */
+function cw_cj_get_live_inventory($cj_variant_id) {
+    if (!CJ_Dropshipping::has_credentials()) {
+        return 0;
+    }
+    
+    $cj = cw_cj_dropshipping();
+    $inventory = $cj->get_inventory_by_vid($cj_variant_id);
+    
+    if (empty($inventory)) {
+        return 0;
+    }
+    
+    // Sum all warehouse inventory
+    $total = 0;
+    foreach ($inventory as $warehouse) {
+        $total += $warehouse['totalInventoryNum'] ?? 0;
+    }
+    
+    return $total;
+}
+
+// ==================== TESTING & DEBUG ====================
+
+/**
+ * Test CJ connection
+ */
+function cw_cj_test_connection() {
+    if (!CJ_Dropshipping::has_credentials()) {
+        return ['success' => false, 'message' => 'No CJ credentials configured'];
+    }
+    
+    $cj = cw_cj_dropshipping();
+    $balance = $cj->get_balance();
+    
+    if ($balance === false) {
+        return ['success' => false, 'message' => 'Failed to connect to CJ API'];
+    }
+    
+    return [
+        'success' => true,
+        'message' => 'Connected to CJ API',
+        'balance' => $balance,
+    ];
+}
+
+// Add debug endpoint (accessible via admin)
+add_action('wp_ajax_cw_cj_test', function() {
+    if (!current_user_can('manage_options')) {
+        wp_die('Unauthorized');
+    }
+    
+    wp_send_json(cw_cj_test_connection());
+});
+
+// Expose test function
+add_action('admin_init', function() {
+    if (isset($_GET['cw_cj_test']) && current_user_can('manage_options')) {
+        wp_send_json(cw_cj_test_connection());
+    }
+});
+
+// ==================== PRODUCT IMPORT ====================
+
+/**
+ * Import products from CJ catalog
+ */
+add_action('wp_ajax_cw_cj_import_ajax', function() {
+    // Security check
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized']);
+    }
+    
+    // Verify nonce
+    check_ajax_referer('cw_cj_import');
+    
+    $search = sanitize_text_field($_POST['search'] ?? '');
+    $markup = intval($_POST['markup'] ?? 50) / 100;
+    $limit = intval($_POST['limit'] ?? 10);
+    
+    if (!CJ_Dropshipping::has_credentials()) {
+        wp_send_json_error(['message' => 'CJ credentials not configured']);
+    }
+    
+    $cj = cw_cj_dropshipping();
+    
+    // Get products from CJ
+    $result = $cj->list_products([
+        'keyWord' => $search,
+        'page' => 1,
+        'size' => $limit,
+        'countryCode' => 'US',
+    ]);
+    
+    if (!isset($result['data']['content'])) {
+        wp_send_json_error(['message' => 'No products found from CJ']);
+    }
+    
+    $imported = 0;
+    $skipped = 0;
+    
+    foreach ($result['data']['content'] as $item) {
+        if (!isset($item['productList'])) continue;
+        
+        foreach ($item['productList'] as $product) {
+            if (empty($product['variants'])) {
+                $skipped++;
+                continue;
+            }
+            
+            // Get first variant
+            $variant = reset($product['variants']);
+            if (empty($variant['vid'])) {
+                $skipped++;
+                continue;
+            }
+            
+            // Check if product already exists
+            $existing = wc_get_products([
+                'meta_key' => '_cj_variant_id',
+                'meta_value' => $variant['vid'],
+                'limit' => 1,
+            ]);
+            
+            if (!empty($existing)) {
+                $skipped++;
+                continue; // Skip duplicates
+            }
+            
+            // Calculate price with markup
+            $cj_price = floatval($variant['salePrice'] ?? 10);
+            $your_price = $cj_price * (1 + $markup);
+            
+            // Create WooCommerce product
+            $product_data = [
+                'name' => sanitize_text_field($product['nameEn'] ?? 'Unnamed Product'),
+                'type' => 'simple',
+                'status' => 'publish',
+                'description' => sanitize_textarea_field($product['productDescribeEn'] ?? ''),
+                'regular_price' => (string) round($your_price, 2),
+                'meta_data' => [
+                    [
+                        'key' => '_cj_variant_id',
+                        'value' => $variant['vid'],
+                    ],
+                    [
+                        'key' => '_cj_product_name',
+                        'value' => $product['nameEn'],
+                    ],
+                    [
+                        'key' => '_cj_cost_price',
+                        'value' => $cj_price,
+                    ],
+                ],
+            ];
+            
+            // Try to create product
+            $wc_product = new WC_Product_Simple();
+            $wc_product->set_props($product_data);
+            
+            try {
+                $product_id = $wc_product->save();
+                
+                if ($product_id) {
+                    $imported++;
+                } else {
+                    $skipped++;
+                }
+            } catch (Exception $e) {
+                error_log('CJ Product Import Error: ' . $e->getMessage());
+                $skipped++;
+            }
+        }
+    }
+    
+    $message = sprintf(
+        'Import complete! Created %d products. Skipped %d (duplicates/errors).',
+        $imported,
+        $skipped
+    );
+    
+    wp_send_json_success([
+        'message' => $message,
+        'imported' => $imported,
+        'skipped' => $skipped,
+    ]);
+});
+

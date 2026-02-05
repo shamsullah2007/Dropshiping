@@ -4,6 +4,11 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// ==================== CJ DROPSHIPPING INTEGRATION ====================
+require_once dirname(__FILE__) . '/cj-integration-hooks.php';
+
+// ==================== NGROK URL FIXES ====================
+
 // Force ngrok URLs when accessed via ngrok proxy
 function custom_woocommerce_fix_ngrok_urls($url) {
     $is_forwarded = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) || !empty($_SERVER['HTTP_X_FORWARDED_PROTO']);
