@@ -176,11 +176,15 @@ get_header();
                         
                         foreach ($reviews as $review) :
                             $rating = intval(get_comment_meta($review->comment_ID, 'rating', true));
+                            $review_user_id = (int) $review->user_id;
+                            $review_avatar_url = $review_user_id
+                                ? custom_woocommerce_get_user_avatar_url($review_user_id)
+                                : get_avatar_url($review->comment_author_email, ['size' => 64]);
                         ?>
                             <div class="carousel-item">
                                 <div class="review-card">
                                     <div class="review-header">
-                                        <img src="<?php echo esc_url(get_avatar_url($review->comment_author_email, ['size' => 64])); ?>" 
+                                        <img src="<?php echo esc_url($review_avatar_url); ?>" 
                                              alt="<?php echo esc_attr($review->comment_author); ?>" 
                                              class="review-avatar">
                                         <div class="review-meta">
