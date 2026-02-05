@@ -4,6 +4,77 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Force ngrok URLs when accessed via ngrok proxy
+function custom_woocommerce_fix_ngrok_urls($url) {
+    $is_forwarded = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) || !empty($_SERVER['HTTP_X_FORWARDED_PROTO']);
+    if ($is_forwarded) {
+        $url = str_replace('http://localhost/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $url);
+        $url = str_replace('http://localhost:80/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $url);
+    }
+    return $url;
+}
+add_filter('home_url', 'custom_woocommerce_fix_ngrok_urls', 1);
+add_filter('site_url', 'custom_woocommerce_fix_ngrok_urls', 1);
+add_filter('option_home', 'custom_woocommerce_fix_ngrok_urls', 1);
+add_filter('option_siteurl', 'custom_woocommerce_fix_ngrok_urls', 1);
+
+// Fix menu item URLs for ngrok
+function custom_woocommerce_fix_menu_urls($items, $args) {
+    $is_forwarded = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) || !empty($_SERVER['HTTP_X_FORWARDED_PROTO']);
+    if ($is_forwarded) {
+        foreach ($items as $item) {
+            $item->url = str_replace('http://localhost/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $item->url);
+            $item->url = str_replace('http://localhost:80/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $item->url);
+        }
+    }
+    return $items;
+}
+add_filter('wp_nav_menu_objects', 'custom_woocommerce_fix_menu_urls', 10, 2);
+
+// Fix menu HTML output for ngrok
+function custom_woocommerce_fix_menu_html($nav_menu, $args) {
+    $is_forwarded = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) || !empty($_SERVER['HTTP_X_FORWARDED_PROTO']);
+    if ($is_forwarded) {
+        $nav_menu = str_replace('http://localhost/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $nav_menu);
+        $nav_menu = str_replace('http://localhost:80/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $nav_menu);
+        $nav_menu = str_replace('href="http://localhost/', 'href="https://zackary-projective-sonically.ngrok-free.dev/', $nav_menu);
+    }
+    return $nav_menu;
+}
+add_filter('wp_nav_menu', 'custom_woocommerce_fix_menu_html', 10, 2);
+
+// Fix all output content URLs for ngrok
+function custom_woocommerce_fix_output_buffer($buffer) {
+    $is_forwarded = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) || !empty($_SERVER['HTTP_X_FORWARDED_PROTO']);
+    if ($is_forwarded) {
+        $buffer = str_replace('http://localhost/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $buffer);
+        $buffer = str_replace('http://localhost:80/wordpress', 'https://zackary-projective-sonically.ngrok-free.dev/wordpress', $buffer);
+    }
+    return $buffer;
+}
+
+function custom_woocommerce_start_output_buffer() {
+    ob_start('custom_woocommerce_fix_output_buffer');
+}
+
+function custom_woocommerce_end_output_buffer() {
+    if (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+}
+add_action('template_redirect', 'custom_woocommerce_start_output_buffer', 1);
+add_action('shutdown', 'custom_woocommerce_end_output_buffer', 999);
+
+// Disable canonical redirect on home page when accessed via ngrok
+function custom_woocommerce_disable_home_redirect($redirect_url, $requested_url) {
+    $is_forwarded = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) || !empty($_SERVER['HTTP_X_FORWARDED_PROTO']);
+    if ($is_forwarded && (is_front_page() || is_home() || $_SERVER['REQUEST_URI'] === '/' || $_SERVER['REQUEST_URI'] === '/wordpress/' || $_SERVER['REQUEST_URI'] === '/wordpress')) {
+        return false;
+    }
+    return $redirect_url;
+}
+add_filter('redirect_canonical', 'custom_woocommerce_disable_home_redirect', 10, 2);
+
 function custom_woocommerce_theme_setup()
 {
     add_theme_support('title-tag');
