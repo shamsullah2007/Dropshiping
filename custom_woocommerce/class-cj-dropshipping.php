@@ -532,11 +532,36 @@ class CJ_Dropshipping {
     public function get_balance() {
         $response = $this->request('get_balance');
         
-        if (is_wp_error($response) || !isset($response['data']['amount'])) {
+        // Debug logging to understand API response format
+        error_log('CJ Balance Response: ' . json_encode($response, JSON_PRETTY_PRINT));
+        
+        if (is_wp_error($response)) {
+            error_log('CJ Balance Error: ' . $response->get_error_message());
             return 0;
         }
         
-        return (float) $response['data']['amount'];
+        // Try different response formats
+        if (isset($response['data']['amount'])) {
+            return (float) $response['data']['amount'];
+        }
+        
+        // Sometimes API returns directly at root level
+        if (isset($response['amount'])) {
+            return (float) $response['amount'];
+        }
+        
+        // Or in data object
+        if (isset($response['data']) && is_array($response['data'])) {
+            // Try to find any numeric field that could be balance
+            foreach ($response['data'] as $key => $value) {
+                if (in_array($key, ['amount', 'balance', 'accountBalance', 'totalAmount'])) {
+                    return (float) $value;
+                }
+            }
+        }
+        
+        error_log('CJ Balance: No recognizable balance field found in response');
+        return 0;
     }
     
     /**

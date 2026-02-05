@@ -16,9 +16,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// ==================== LOAD CLASS ====================
+// ==================== LOAD CLASS & ADMIN ====================
 
 require_once dirname(__FILE__) . '/class-cj-dropshipping.php';
+require_once dirname(__FILE__) . '/cj-admin-page.php';
 
 // ==================== ADMIN SETTINGS ====================
 
@@ -36,202 +37,6 @@ add_action('admin_menu', function() {
     );
 });
 
-/**
- * Render CJ Dropshipping admin settings page
- */
-function cw_cj_admin_page() {
-    // Handle form submission
-    if (isset($_POST['submit']) && check_admin_referer('cw_cj_settings')) {
-        $cj = cw_cj_dropshipping();
-        $result = $cj->set_credentials(
-            $_POST['cj_api_key'] ?? '',
-            $_POST['cj_platform_token'] ?? ''
-        );
-        
-        if ($result) {
-            echo '<div class="notice notice-success"><p>CJ credentials saved and verified!</p></div>';
-        } else {
-            echo '<div class="notice notice-error"><p>Failed to verify CJ credentials. Please check your API Key.</p></div>';
-        }
-    }
-    
-    // Get current credentials
-    $api_key = get_option('cw_cj_api_key', '');
-    $platform_token = get_option('cw_cj_platform_token', '');
-    $balance = CJ_Dropshipping::has_credentials() ? cw_cj_dropshipping()->get_balance() : 0;
-    ?>
-    <div class="wrap">
-        <h1>CJ Dropshipping Settings</h1>
-        
-        <?php if ($balance > 0): ?>
-            <div class="notice notice-info"><p>
-                <strong>CJ Account Balance:</strong> $<?php echo number_format($balance, 2); ?>
-            </p></div>
-        <?php endif; ?>
-        
-        <form method="post" class="cj-settings-form">
-            <?php wp_nonce_field('cw_cj_settings'); ?>
-            
-            <table class="form-table">
-                <tr>
-                    <th><label for="cj_api_key">CJ API Key</label></th>
-                    <td>
-                        <input type="text" 
-                               id="cj_api_key" 
-                               name="cj_api_key" 
-                               value="<?php echo esc_attr($api_key); ?>" 
-                               class="regular-text" 
-                               placeholder="CJUserNum@api@xxxxxxxx..."
-                               required>
-                        <p class="description">Get from <a href="https://developer.cjdropshipping.com/account/info" target="_blank">CJ Developer Account</a><br>
-                        Format: <code>CJUserNum@api@xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></p>
-                    </td>
-                </tr>
-                
-                <tr>
-                    <th><label for="cj_platform_token">Platform Token (Optional)</label></th>
-                    <td>
-                        <input type="text" 
-                               id="cj_platform_token" 
-                               name="cj_platform_token" 
-                               value="<?php echo esc_attr($platform_token); ?>" 
-                               class="regular-text">
-                        <p class="description">Optional: For multi-platform orders</p>
-                    </td>
-                </tr>
-            </table>
-            
-            <?php submit_button('Save CJ Credentials'); ?>
-        </form>
-        
-        <hr>
-        
-        <h2>Import Products from CJ</h2>
-        <p>Automatically import CJ products to your WooCommerce store. This will:</p>
-        <ul style="margin: 10px 0; padding: 0 20px;">
-            <li>✓ Create new WooCommerce products</li>
-            <li>✓ Auto-link to CJ variants (automatic orders enabled)</li>
-            <li>✓ Add 50% markup to CJ prices</li>
-            <li>✓ Set inventory from CJ stock</li>
-        </ul>
-        
-        <form method="post" id="cj-import-form">
-            <?php wp_nonce_field('cw_cj_import'); ?>
-            <input type="hidden" name="action" value="cw_cj_import_products">
-            <table class="form-table">
-                <tr>
-                    <th><label for="import_search">Search for products (optional)</label></th>
-                    <td>
-                        <input type="text" 
-                               id="import_search" 
-                               name="import_search" 
-                               class="regular-text" 
-                               placeholder="e.g., hoodie, mug, shirt (leave empty for all)">
-                        <p class="description">Leave empty to import all products</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="import_markup">Price Markup (%)</label></th>
-                    <td>
-                        <input type="number" 
-                               id="import_markup" 
-                               name="import_markup" 
-                               value="50" 
-                               min="0" 
-                               max="500" 
-                               class="small-text">
-                        <p class="description">How much to mark up CJ prices (50 = 50% markup)</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="import_limit">Max products to import</label></th>
-                    <td>
-                        <input type="number" 
-                               id="import_limit" 
-                               name="import_limit" 
-                               value="10" 
-                               min="1" 
-                               max="500" 
-                               class="small-text">
-                        <p class="description">Start with 10, increase after testing</p>
-                    </td>
-                </tr>
-            </table>
-            
-            <?php submit_button('Import Products Now', 'primary', 'submit', false); ?>
-            <span id="import-status" style="margin-left: 20px; display: none;">
-                <strong>Importing...</strong> <span id="import-count">0</span> products
-            </span>
-        </form>
-        
-        <div id="import-results" style="margin-top: 20px; display: none;">
-            <div class="notice notice-success"><p id="import-success-msg"></p></div>
-        </div>
-        
-        <script>
-        jQuery(function($) {
-            $('#cj-import-form').on('submit', function(e) {
-                e.preventDefault();
-                
-                const search = $('#import_search').val();
-                const markup = $('#import_markup').val();
-                const limit = $('#import_limit').val();
-                const nonce = $('input[name="_wpnonce"]').val();
-                
-                $('#import-status').show();
-                $('#import-results').hide();
-                
-                $.ajax({
-                    url: ajaxurl,
-                    type: 'POST',
-                    data: {
-                        action: 'cw_cj_import_ajax',
-                        nonce: nonce,
-                        search: search,
-                        markup: markup,
-                        limit: limit
-                    },
-                    success: function(response) {
-                        $('#import-status').hide();
-                        if (response.success) {
-                            $('#import-success-msg').text(response.data.message);
-                            $('#import-results').show();
-                        } else {
-                            alert('Import failed: ' + (response.data?.message || 'Unknown error'));
-                        }
-                    },
-                    error: function() {
-                        $('#import-status').hide();
-                        alert('Error during import. Check your API Key.');
-                    }
-                });
-            });
-        });
-        </script>
-        
-        <hr>
-        
-        <h2>Integration Features</h2>
-        <ul style="margin: 20px 0; padding: 0 20px;">
-            <li>✓ Product import from CJ catalog</li>
-            <li>✓ Real-time inventory sync</li>
-            <li>✓ Automatic order creation when WooCommerce order placed</li>
-            <li>✓ Automatic payment deduction from CJ balance</li>
-            <li>✓ Webhook receiver for tracking updates</li>
-            <li>✓ Order status synchronization</li>
-        </ul>
-        
-        <h2>Webhook URL</h2>
-        <p>Configure this URL in your CJ account for order/tracking notifications:</p>
-        <code style="display: block; padding: 10px; background: #f5f5f5; margin: 10px 0;">
-            <?php echo esc_url(home_url('/wp-json/cj-dropshipping/v1/webhook')); ?>
-        </code>
-    </div>
-    <style>
-        .cj-settings-form .form-table th { width: 200px; }
-    </style>
-    <?php
-}
 
 // ==================== REST API WEBHOOK ====================
 
@@ -545,7 +350,7 @@ add_action('admin_init', function() {
 // ==================== PRODUCT IMPORT ====================
 
 /**
- * Import products from CJ catalog
+ * Import products from CJ catalog (Simplified - no images)
  */
 add_action('wp_ajax_cw_cj_import_ajax', function() {
     // Security check
@@ -574,14 +379,33 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
         'countryCode' => 'US',
     ]);
     
-    if (!isset($result['data']['content'])) {
-        wp_send_json_error(['message' => 'No products found from CJ']);
+    // Debug logging
+    error_log('CJ Import Response: ' . json_encode($result));
+    
+    // Check for errors
+    if (is_wp_error($result)) {
+        wp_send_json_error(['message' => 'CJ API Error: ' . $result->get_error_message()]);
+    }
+    
+    if (empty($result)) {
+        wp_send_json_error(['message' => 'No response from CJ API']);
+    }
+    
+    // Handle different response structures
+    $content = [];
+    if (isset($result['data']['content'])) {
+        $content = $result['data']['content'];
+    } elseif (isset($result['content'])) {
+        $content = $result['content'];
+    } else {
+        error_log('CJ Response structure: ' . json_encode($result));
+        wp_send_json_error(['message' => 'Invalid response format from CJ']);
     }
     
     $imported = 0;
     $skipped = 0;
     
-    foreach ($result['data']['content'] as $item) {
+    foreach ($content as $item) {
         if (!isset($item['productList'])) continue;
         
         foreach ($item['productList'] as $product) {
@@ -643,11 +467,13 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
             try {
                 $product_id = $wc_product->save();
                 
-                if ($product_id) {
-                    $imported++;
-                } else {
+                if (!$product_id) {
                     $skipped++;
+                    continue;
                 }
+                
+                $imported++;
+                
             } catch (Exception $e) {
                 error_log('CJ Product Import Error: ' . $e->getMessage());
                 $skipped++;
@@ -655,8 +481,12 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
         }
     }
     
+    if ($imported === 0 && $skipped === 0) {
+        wp_send_json_error(['message' => 'No products found in response']);
+    }
+    
     $message = sprintf(
-        'Import complete! Created %d products. Skipped %d (duplicates/errors).',
+        'Success! Created %d products. Skipped %d (duplicates/errors).',
         $imported,
         $skipped
     );
