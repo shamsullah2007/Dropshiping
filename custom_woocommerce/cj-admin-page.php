@@ -338,7 +338,7 @@ function cw_cj_admin_page() {
             </p>
             
             <form id="cj-import-form" class="cj-import-form">
-                <?php wp_nonce_field('cw_cj_import'); ?>
+                <?php wp_nonce_field('cw_cj_import', 'cw_cj_import_nonce'); ?>
                 
                 <div class="cj-form-group">
                     <label for="import_search">Search Products</label>
@@ -397,7 +397,7 @@ function cw_cj_admin_page() {
             const search = $('#import_search').val();
             const markup = $('#import_markup').val();
             const limit = $('#import_limit').val();
-            const nonce = $('input[name="_wpnonce"]').val();
+            const nonce = $('input[name="cw_cj_import_nonce"]').val();
             
             $('#cj-import-status').show();
             $('#cj-import-results').hide();
@@ -408,7 +408,7 @@ function cw_cj_admin_page() {
                 type: 'POST',
                 data: {
                     action: 'cw_cj_import_ajax',
-                    nonce: nonce,
+                    cw_cj_import_nonce: nonce,
                     search: search,
                     markup: markup,
                     limit: limit
@@ -424,10 +424,11 @@ function cw_cj_admin_page() {
                         alert('❌ ' + (response.data?.message || 'Unknown error'));
                     }
                 },
-                error: function() {
+                error: function(xhr) {
                     $('#cj-import-status').hide();
                     $('#cj-import-btn-text').text('Start Import');
-                    alert('❌ Error: Check your API Key is saved');
+                    const message = xhr?.responseJSON?.data?.message || xhr?.responseText || 'Request failed.';
+                    alert('❌ ' + message);
                 }
             });
         });

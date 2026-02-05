@@ -359,7 +359,7 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
     }
     
     // Verify nonce
-    check_ajax_referer('cw_cj_import');
+    check_ajax_referer('cw_cj_import', 'cw_cj_import_nonce');
     
     $search = sanitize_text_field($_POST['search'] ?? '');
     $markup = intval($_POST['markup'] ?? 50) / 100;
