@@ -224,7 +224,7 @@
                 if (useSwatch) {
                     const imgUrl = getFirstMatchingImage(variations, attrKey, value);
                     const $item = $('<div class="cj-swatch-item"></div>');
-                    const titleText = isColor ? ('Color ' + text) : text;
+                    const titleText = text;
                     $item.append('<div class="cj-swatch-title">' + titleText + '</div>');
 
                     const $btn = $('<button type="button" class="cj-swatch" data-value="' + value + '"></button>');
