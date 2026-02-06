@@ -21,6 +21,7 @@ if (!defined('ABSPATH')) {
 require_once dirname(__FILE__) . '/class-cj-dropshipping.php';
 require_once dirname(__FILE__) . '/cj-admin-page.php';
 require_once dirname(__FILE__) . '/cj-variable-products.php';
+require_once dirname(__FILE__) . '/cj-import-repair.php';
 
 // ==================== ADMIN SETTINGS ====================
 
@@ -1036,12 +1037,30 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 error_log('CJ Import: ✓ Got details for product ' . $product_id . ', name: ' . ($details['productName'] ?? 'unknown'));
             }
             
-            // Get all variants for this product
+            // Get all variants for this product - allow fallback
             error_log('CJ Import: Fetching variants for product ' . $product_id);
             $variants = $cj->get_variants($product_id);
             
             if (empty($variants)) {
-                error_log('CJ Import: No variants returned for product ' . $product_id);
+                error_log('CJ Import: No variants returned. Trying with country code...');
+                $variants = $cj->get_variants($product_id, 'US');
+            }
+            
+            if (empty($variants) && !empty($details['productSku'])) {
+                error_log('CJ Import: Creating fallback variant from product data');
+                $variants = [[
+                    'vid' => $product_id . '-main',
+                    'sku' => $details['productSku'] ?? '',
+                    'variantSku' => $details['productSku'] ?? '',
+                    'variantName' => 'Default',
+                    'sellPrice' => $details['sellPrice'] ?? $details['price'] ?? 10,
+                    'quantity' => $details['quantity'] ?? 0,
+                ]];
+                error_log('CJ Import: ✓ Created fallback variant');
+            }
+            
+            if (empty($variants)) {
+                error_log('CJ Import: Cannot create product without variants');
                 $skipped++;
                 continue;
             }
@@ -1071,6 +1090,8 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 'description' => $details['productDescribeEn'] ?? $details['description'] ?? $details['descriptionEn'] ?? '',
                 'productImage' => $details['productImage'] ?? $details['mainImage'] ?? '',
                 'bigImage' => $details['productImage'] ?? $details['mainImage'] ?? '',
+                'sku' => $details['productSku'] ?? $details['sku'] ?? '',
+                'sellPrice' => $details['sellPrice'] ?? $details['price'] ?? 0,
                 'variants' => $variants,
             ];
             
