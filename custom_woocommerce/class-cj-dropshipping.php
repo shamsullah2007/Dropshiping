@@ -328,13 +328,24 @@ class CJ_Dropshipping {
             $params['countryCode'] = $country_code;
         }
         
+        // Request all variants (set high pageSize)
+        $params['pageSize'] = 100;
+        $params['pageNo'] = 1;
+        
         $response = $this->request('get_variants', 'GET', $params);
         
         if (is_wp_error($response)) {
             return [];
         }
         
-        return isset($response['data']) ? $response['data'] : [];
+        $variants = isset($response['data']) ? $response['data'] : [];
+        
+        // If API returned data but not in array format, return as array
+        if (!is_array($variants)) {
+            return [];
+        }
+        
+        return $variants;
     }
     
     // ==================== INVENTORY METHODS ====================

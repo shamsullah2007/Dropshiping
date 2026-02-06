@@ -612,6 +612,12 @@
     margin-bottom: 8px;
 }
 
+.cj-variation-selected {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
 .cj-variation-options {
     display: flex;
     flex-wrap: wrap;
@@ -620,6 +626,21 @@
 
 .cj-swatch-list {
     gap: 12px;
+    align-items: flex-start;
+}
+
+.cj-swatch-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.cj-swatch-title {
+    font-size: 0.75rem;
+    color: #6b7280;
+    line-height: 1;
+    text-align: center;
 }
 
 .cj-swatch {

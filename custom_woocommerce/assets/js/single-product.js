@@ -166,6 +166,7 @@
             if (selected) {
                 $group.find('[data-value="' + selected.replace(/"/g, '\\"') + '"]').addClass('cj-swatch--selected');
             }
+
         });
     }
 
@@ -182,10 +183,16 @@
             }
 
             const isColor = isColorAttribute(attrKey, labelText);
-            const useSwatch = isColor || attributeHasImages(variations, attrKey);
-            const isSize = !useSwatch && (isSizeAttribute(attrKey, labelText) || !isColor);
+            const isSize = isSizeAttribute(attrKey, labelText);
+            const hasImages = attributeHasImages(variations, attrKey);
+
+            // Show swatches for Color or images, but NEVER for Size (Size is always text buttons)
+            const useSwatch = !isSize && (isColor || hasImages);
+
+            console.log('[CJ] Attribute:', attrKey, 'Label:', labelText, 'isColor:', isColor, 'isSize:', isSize, 'hasImages:', hasImages, 'useSwatch:', useSwatch);
 
             if (!useSwatch && !isSize) {
+                console.log('[CJ] Skipping attribute (neither swatch nor size):', attrKey);
                 return;
             }
 
@@ -197,7 +204,8 @@
 
             const $group = $('<div class="cj-variation-group"></div>');
             $group.attr('data-attribute', attrKey);
-            $group.append('<div class="cj-variation-label">' + (labelText || (useSwatch ? 'Color' : 'Size')) + '</div>');
+            const labelBase = labelText || (useSwatch ? 'Color' : 'Size');
+            $group.append('<div class="cj-variation-label">' + labelBase + '</div>');
 
             const $list = $('<div class="cj-variation-options"></div>');
             if (useSwatch) {
@@ -206,6 +214,7 @@
                 $list.addClass('cj-size-list');
             }
 
+            let optionCount = 0;
             $select.find('option').each(function () {
                 const value = $(this).attr('value');
                 const text = $(this).text().trim();
@@ -213,21 +222,29 @@
                     return;
                 }
 
+                optionCount++;
+
                 if (useSwatch) {
                     const imgUrl = getFirstMatchingImage(variations, attrKey, value);
+                    const $item = $('<div class="cj-swatch-item"></div>');
+                    const titleText = isColor ? ('Color ' + text) : text;
+                    $item.append('<div class="cj-swatch-title">' + titleText + '</div>');
+
                     const $btn = $('<button type="button" class="cj-swatch" data-value="' + value + '"></button>');
                     if (imgUrl) {
                         $btn.append('<img src="' + imgUrl + '" alt="' + text + '" loading="lazy">');
                     } else {
                         $btn.append('<span class="cj-swatch-text">' + text + '</span>');
                     }
-                    $btn.append('<span class="cj-swatch-label">' + text + '</span>');
-                    $list.append($btn);
+                    $item.append($btn);
+                    $list.append($item);
                 } else {
                     const $btn = $('<button type="button" class="cj-size-btn" data-value="' + value + '">' + text + '</button>');
                     $list.append($btn);
                 }
             });
+
+            console.log('[CJ] Rendered', optionCount, 'options for', attrKey, 'as', (useSwatch ? 'swatches' : 'size buttons'));
 
             $group.append($list);
             $select.after($group);

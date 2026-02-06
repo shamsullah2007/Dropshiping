@@ -487,6 +487,250 @@ function cw_cj_get_live_inventory($cj_variant_id) {
     return $total;
 }
 
+/**
+ * Refresh variants for an existing WooCommerce product from CJ
+ * Updates variant images and prices without deleting the product
+ * 
+ * @param int $product_id WooCommerce product ID
+ * @return array Status array with 'success' and 'message'
+ */
+function cw_cj_refresh_product_variants($product_id) {
+    $product = wc_get_product($product_id);
+    
+    if (!$product) {
+        return ['success' => false, 'message' => 'Product not found'];
+    }
+    
+    $cj_product_id = $product->get_meta('_cj_product_id');
+    if (!$cj_product_id) {
+        return ['success' => false, 'message' => 'Product is not linked to CJ'];
+    }
+    
+    if (!CJ_Dropshipping::has_credentials()) {
+        return ['success' => false, 'message' => 'CJ credentials not configured'];
+    }
+    
+    try {
+        $cj = cw_cj_dropshipping();
+        
+        // Get product details from CJ
+        $details = $cj->get_product_details($cj_product_id, true);
+        if (empty($details)) {
+            return ['success' => false, 'message' => 'Failed to fetch product from CJ'];
+        }
+        
+        // Get variants from CJ
+        $variants = $cj->get_variants($cj_product_id);
+        if (empty($variants)) {
+            return ['success' => false, 'message' => 'No variants found on CJ'];
+        }
+        
+        // Get existing WC variations
+        $wc_variations = $product->get_children();
+        if (empty($wc_variations)) {
+            return ['success' => false, 'message' => 'Product has no variations'];
+        }
+        
+        // Update each WC variation with CJ data
+        $updated_count = 0;
+        foreach ($wc_variations as $var_id) {
+            $wc_variation = wc_get_product($var_id);
+            if (!$wc_variation) {
+                continue;
+            }
+            
+            // Find matching CJ variant by SKU or name
+            $cj_variant = null;
+            $wc_sku = $wc_variation->get_sku();
+            
+            foreach ($variants as $v) {
+                if ($wc_sku && ($v['variantSku'] ?? '' ) === $wc_sku) {
+                    $cj_variant = $v;
+                    break;
+                }
+            }
+            
+            if (!$cj_variant && !empty($variants[0])) {
+                $cj_variant = $variants[0];
+            }
+            
+            if (!$cj_variant) {
+                continue;
+            }
+            
+            // Update variant price
+            $base_price = $cj_variant['variantSellPrice'] ?? $cj_variant['sellPrice'] ?? 0;
+            $markup = 0.5; // 50% markup
+            if ($base_price > 0) {
+                $price = round($base_price * (1 + $markup), 2);
+                $wc_variation->set_regular_price((string) $price);
+            }
+            
+            // Update variant image
+            $variant_image_url = '';
+            if (!empty($cj_variant['variantImage'])) {
+                $variant_image_url = $cj_variant['variantImage'];
+            }
+            
+            if ($variant_image_url) {
+                $wc_variation->update_meta_data('_cj_variant_image_url', $variant_image_url);
+                
+                // Try to download and attach image
+                if (function_exists('cw_cj_sideload_image')) {
+                    $img_id = cw_cj_sideload_image($variant_image_url, $product_id, $product->get_name(), true);
+                    if (!is_wp_error($img_id)) {
+                        $wc_variation->set_image_id($img_id);
+                    }
+                }
+            }
+            
+            // Update CJ variant ID
+            $cj_variant_id = $cj_variant['vid'] ?? '';
+            if ($cj_variant_id) {
+                $wc_variation->update_meta_data('_cj_variant_id', $cj_variant_id);
+            }
+            
+            $wc_variation->save();
+            $updated_count++;
+        }
+        
+        if ($updated_count === 0) {
+            return ['success' => false, 'message' => 'No variants were updated'];
+        }
+        
+        return [
+            'success' => true,
+            'message' => sprintf('Successfully refreshed %d variant(s)', $updated_count),
+            'updated' => $updated_count,
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage(),
+        ];
+    }
+}
+
+/**
+ * AJAX handler for refreshing product variants
+ */
+add_action('wp_ajax_cw_cj_refresh_variants', function() {
+    check_ajax_referer('cw_cj_admin_nonce', 'nonce');
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied']);
+    }
+    
+    $product_id = intval($_POST['product_id'] ?? 0);
+    if (!$product_id) {
+        wp_send_json_error(['message' => 'Product ID required']);
+    }
+    
+    $result = cw_cj_refresh_product_variants($product_id);
+    if ($result['success']) {
+        wp_send_json_success($result);
+    } else {
+        wp_send_json_error($result);
+    }
+});
+
+/**
+ * Register product metabox for refresh variants
+ */
+add_action('add_meta_boxes', function() {
+    add_meta_box(
+        'cw_cj_refresh_variants_box',
+        'CJ Dropshipping',
+        'cw_cj_refresh_variants_metabox',
+        'product',
+        'normal',
+        'high'
+    );
+});
+
+/**
+ * Render refresh variants metabox
+ */
+function cw_cj_refresh_variants_metabox($post) {
+    $product = wc_get_product($post->ID);
+    if (!$product) {
+        echo '<p>Product not found</p>';
+        return;
+    }
+    
+    $cj_product_id = $product->get_meta('_cj_product_id');
+    if (!$cj_product_id) {
+        echo '<p style="color: #666; padding: 10px 0;">This product is not linked to CJ Dropshipping.</p>';
+        return;
+    }
+    
+    wp_nonce_field('cw_cj_admin_nonce', 'cw_cj_admin_nonce');
+    ?>
+    <div style="padding: 10px 0; border-top: 1px solid #eee; padding-top: 15px;">
+        <p style="margin: 0 0 15px 0;">
+            <strong>CJ Product ID:</strong> <?php echo esc_html($cj_product_id); ?>
+        </p>
+        
+        <button type="button" id="cw-cj-refresh-btn" class="button button-primary" style="padding: 6px 12px;">
+            <span id="cw-cj-refresh-text">🔄 Refresh Variants from CJ</span>
+        </button>
+        
+        <div id="cw-cj-refresh-status" style="margin-top: 12px; display: none;">
+            <p id="cw-cj-refresh-message" style="margin: 0; padding: 10px; border-radius: 4px; background-color: #f0f0f0;"></p>
+        </div>
+    </div>
+    
+    <script>
+    jQuery(function($) {
+        $('#cw-cj-refresh-btn').on('click', function() {
+            var btn = $(this);
+            var statusDiv = $('#cw-cj-refresh-status');
+            var statusMsg = $('#cw-cj-refresh-message');
+            
+            // Disable button and show loading
+            btn.prop('disabled', true);
+            $('#cw-cj-refresh-text').text('⏳ Refreshing...');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'cw_cj_refresh_variants',
+                    product_id: <?php echo intval($post->ID); ?>,
+                    nonce: $('input[name="cw_cj_admin_nonce"]').val()
+                },
+                success: function(response) {
+                    statusDiv.show();
+                    if (response.success) {
+                        statusMsg.css('background-color', '#d4edda').css('color', '#155724').html(
+                            '✓ ' + response.data.message
+                        );
+                        $('#cw-cj-refresh-text').text('✓ Variants Refreshed');
+                    } else {
+                        statusMsg.css('background-color', '#f8d7da').css('color', '#721c24').html(
+                            '✗ ' + response.data.message
+                        );
+                        $('#cw-cj-refresh-text').text('🔄 Refresh Variants from CJ');
+                    }
+                },
+                error: function() {
+                    statusDiv.show();
+                    statusMsg.css('background-color', '#f8d7da').css('color', '#721c24').html(
+                        '✗ Request failed. Please check your connection.'
+                    );
+                    $('#cw-cj-refresh-text').text('🔄 Refresh Variants from CJ');
+                },
+                complete: function() {
+                    btn.prop('disabled', false);
+                }
+            });
+        });
+    });
+    </script>
+    <?php
+}
+
 // ==================== TESTING & DEBUG ====================
 
 /**
@@ -706,7 +950,7 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
             }
             
             // Get all variants for this product
-            $variants = $cj->get_variants($product_id, 'US');
+            $variants = $cj->get_variants($product_id);
             
             if (empty($variants)) {
                 error_log('CJ Import: No variants for product ' . $product_id);
@@ -885,7 +1129,7 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 // Get all variants for this product
                 $variants = $product['variants'] ?? [];
                 if (empty($variants)) {
-                    $variants = $cj->get_variants($product['id'] ?? '', 'US');
+                    $variants = $cj->get_variants($product['id'] ?? '');
                 }
 
                 if (empty($variants)) {

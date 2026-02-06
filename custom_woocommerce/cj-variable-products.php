@@ -11,6 +11,133 @@ if (!defined('ABSPATH')) {
 }
 
 /**
+ * Common color names for detection.
+ *
+ * @return array
+ */
+function cw_cj_get_common_colors() {
+    return [
+        'red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'black',
+        'white', 'gray', 'grey', 'brown', 'gold', 'silver', 'beige', 'tan',
+        'navy', 'maroon', 'burgundy', 'rose', 'teal', 'turquoise', 'cyan',
+        'magenta', 'coral', 'salmon', 'khaki', 'olive', 'lime', 'mint',
+    ];
+}
+
+/**
+ * Check if a string appears to be a size value.
+ *
+ * @param string $value Value to check
+ * @return bool
+ */
+function cw_cj_is_size_value($value) {
+    $value = strtolower(trim($value));
+    
+    // Common size patterns
+    if (preg_match('/^(xs|s|m|l|xl|xxl|xxxl|one\s*size)$/', $value)) {
+        return true;
+    }
+    // Numeric sizes with units: 2000ml, 500L, 32oz, 10cm, 5m, 10ft, etc.
+    if (preg_match('/^\d+\.?\d*\s*(ml|l|oz|cm|mm|m|inch|in|ft|\"|\')?$/i', $value)) {
+        return true;
+    }
+    // Dimension sizes: 10x20, 5x7x8
+    if (preg_match('/^\d+x\d+/', $value)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Check if a string appears to be a color value.
+ *
+ * @param string $value Value to check
+ * @return bool
+ */
+function cw_cj_is_color_value($value) {
+    $value = strtolower(trim($value));
+    $colors = cw_cj_get_common_colors();
+    
+    foreach ($colors as $color) {
+        if (stripos($value, $color) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Try to auto-split a variant string into Color and Size.
+ *
+ * @param string $raw Raw variant string
+ * @return array Parsed attributes
+ */
+function cw_cj_auto_split_attributes($raw) {
+    $raw = trim($raw);
+    if (empty($raw)) {
+        return [];
+    }
+    
+    // Already structured (Color: value; Size: value)
+    if (preg_match('/color|size|length|width/i', $raw)) {
+        return [];
+    }
+    
+    // Try splitting by common delimiters
+    $parts = preg_split('/[\s,;|\-]/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+    $parts = array_map('trim', $parts);
+    $parts = array_filter($parts);
+    
+    if (empty($parts)) {
+        return [];
+    }
+    
+    error_log('[CJ Auto-Split] Raw: "' . $raw . '" → Parts: ' . json_encode($parts));
+    
+    $attrs = [];
+    $color = null;
+    $size = null;
+    
+    foreach ($parts as $part) {
+        $is_color = cw_cj_is_color_value($part);
+        $is_size = cw_cj_is_size_value($part);
+        error_log('[CJ Auto-Split] Testing "' . $part . '" → isColor: ' . ($is_color ? 'yes' : 'no') . ', isSize: ' . ($is_size ? 'yes' : 'no'));
+        
+        if ($is_color && !$color) {
+            $color = $part;
+        } elseif ($is_size && !$size) {
+            $size = $part;
+        }
+    }
+    
+    if ($color) {
+        $attrs['Color'] = $color;
+    }
+    if ($size) {
+        $attrs['Size'] = $size;
+    }
+    
+    // If we found Color and Size, return them
+    if (!empty($attrs)) {
+        error_log('[CJ Auto-Split] Result: ' . json_encode($attrs));
+        return $attrs;
+    }
+    
+    // If only 2 parts and both look like attributes, try to guess
+    if (count($parts) === 2) {
+        if (cw_cj_is_color_value($parts[0])) {
+            error_log('[CJ Auto-Split] Guessing: ' . json_encode(['Color' => $parts[0], 'Size' => $parts[1]]));
+            return ['Color' => $parts[0], 'Size' => $parts[1]];
+        } elseif (cw_cj_is_color_value($parts[1])) {
+            error_log('[CJ Auto-Split] Guessing: ' . json_encode(['Size' => $parts[0], 'Color' => $parts[1]]));
+            return ['Size' => $parts[0], 'Color' => $parts[1]];
+        }
+    }
+    
+    return [];
+}
+
+/**
  * Parse CJ variant attributes into key/value pairs.
  *
  * @param array $variant CJ variant data
@@ -48,6 +175,7 @@ function cw_cj_parse_variant_attributes($variant) {
         return [];
     }
 
+    // Try explicit key:value pairs first
     $parts = preg_split('/[;|]/', $raw);
     $attrs = [];
 
@@ -70,11 +198,20 @@ function cw_cj_parse_variant_attributes($variant) {
         }
     }
 
-    if (empty($attrs)) {
-        $attrs['Option'] = $raw;
+    if (!empty($attrs)) {
+        return $attrs;
+    }
+    
+    // Try auto-split Color/Size
+    $auto_attrs = cw_cj_auto_split_attributes($raw);
+    if (!empty($auto_attrs)) {
+        error_log('[CJ Import] Auto-split detected from "' . $raw . '": ' . json_encode($auto_attrs));
+        return $auto_attrs;
     }
 
-    return $attrs;
+    // Fallback: single Option attribute
+    error_log('[CJ Import] No attributes detected for variant "' . $raw . '" - using fallback Option');
+    return ['Option' => $raw];
 }
 
 /**
@@ -175,6 +312,8 @@ function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $cate
         $attribute->set_visible(true);
         $attribute->set_variation(true);
         $product_attributes[] = $attribute;
+        
+        error_log('[CJ Import] Attribute "' . $name . '" created with ' . count(array_unique($values)) . ' values: ' . implode(', ', array_unique($values)));
     }
 
     $wc_product->set_attributes($product_attributes);
