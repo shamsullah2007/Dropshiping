@@ -835,7 +835,8 @@ function cw_cj_sideload_image($url, $post_id, $desc = '', $skip_metadata = false
 }
 
 /**
- * Import products from CJ catalog (Simplified - no images)
+ * Extract product ID from CJ product URL
+ * Supports both UUID and numeric formats
  */
 function cw_cj_extract_product_id_from_url($url) {
     $url = trim((string) $url);
@@ -843,22 +844,49 @@ function cw_cj_extract_product_id_from_url($url) {
         return '';
     }
 
+    // PRIORITY 1: UUID format at end of URL before .html (e.g., -p-4BB39C1C-2AF0-4CC3-9D66-BAA427505625.html)
+    // UUIDs have format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+    if (preg_match('/-p-([A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12})\.html/i', $url, $match)) {
+        error_log('CJ Extract: Got UUID from -p- format: ' . $match[1]);
+        return $match[1];
+    }
+
+    // PRIORITY 2: Legacy numeric format: ...-p-123456789.html
     if (preg_match('/-p-(\d+)\.html/i', $url, $match)) {
+        error_log('CJ Extract: Got numeric ID from -p- format: ' . $match[1]);
         return $match[1];
     }
 
-    if (preg_match('/\/product\/([a-zA-Z0-9]+)/i', $url, $match)) {
+    // PRIORITY 3: UUID directly after /product/ path (before query or end)
+    if (preg_match('/\/product\/([A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12})/i', $url, $match)) {
+        error_log('CJ Extract: Got UUID from /product/ path: ' . $match[1]);
         return $match[1];
     }
 
-    if (preg_match('/[?&](?:id|pid|productId|product_id)=([a-zA-Z0-9]+)/i', $url, $match)) {
+    // PRIORITY 4: Product name with UUID may appear, try to extract UUID-like pattern
+    // This handles URLs where the UUID or ID comes after /product/
+    if (preg_match('/\/product\/[^\/]*-p-([A-Fa-f0-9\-]+)(?:\.html|\/|$|\?)/i', $url, $match)) {
+        $id = $match[1];
+        // Validate it looks like an ID (has hyphens for UUID or all digits)
+        if (preg_match('/^[A-Fa-f0-9\-]+$/', $id)) {
+            error_log('CJ Extract: Got ID from /product/ with -p-: ' . $id);
+            return $id;
+        }
+    }
+
+    // PRIORITY 5: Query params: ?id=ID, ?pid=ID, ?productId=ID
+    if (preg_match('/[?&](?:id|pid|productId|product_id)=([a-zA-Z0-9\-]+)/i', $url, $match)) {
+        error_log('CJ Extract: Got ID from query params: ' . $match[1]);
         return $match[1];
     }
 
-    if (preg_match('/#.*id=([a-zA-Z0-9]+)/i', $url, $match)) {
+    // PRIORITY 6: Hash params: #id=ID
+    if (preg_match('/#.*id=([a-zA-Z0-9\-]+)/i', $url, $match)) {
+        error_log('CJ Extract: Got ID from hash params: ' . $match[1]);
         return $match[1];
     }
 
+    error_log('CJ Extract: Failed to extract ID from URL: ' . $url);
     return '';
 }
 
@@ -898,28 +926,64 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
         // Import by product links
         $product_ids = [];
         
+        // Log raw POST data
+        error_log('🔍 CJ Import AJAX: Raw $_POST keys: ' . json_encode(array_keys($_POST)));
+        error_log('🔍 CJ Import AJAX: Raw $_FILES: ' . json_encode($_FILES));
+        
+        // Handle both product_ids and product_ids[] formats
         if (isset($_POST['product_ids'])) {
             $raw_ids = $_POST['product_ids'];
+            error_log('🔍 CJ Import: Found product_ids in POST');
+            error_log('🔍 CJ Import: Raw product_ids type: ' . gettype($raw_ids));
+            error_log('🔍 CJ Import: Raw product_ids value: ' . json_encode($raw_ids));
             
             // Handle both array and string formats
             if (is_array($raw_ids)) {
+                error_log('🔍 CJ Import: product_ids is array with ' . count($raw_ids) . ' items');
                 $product_ids = array_map('sanitize_text_field', $raw_ids);
             } else {
-                // If it's a single string (shouldn't happen but just in case)
+                error_log('🔍 CJ Import: product_ids is string, converting to array');
                 $product_ids = [sanitize_text_field($raw_ids)];
             }
+        } elseif (isset($_POST['product_ids[]'])) {
+            // Try array format
+            $raw_ids = $_POST['product_ids[]'];
+            error_log('🔍 CJ Import: Found product_ids[] in POST');
+            error_log('🔍 CJ Import: product_ids[] type: ' . gettype($raw_ids));
+            
+            if (is_array($raw_ids)) {
+                error_log('🔍 CJ Import: product_ids[] is array with ' . count($raw_ids) . ' items');
+                $product_ids = array_map('sanitize_text_field', $raw_ids);
+            } else {
+                error_log('🔍 CJ Import: product_ids[] is string');
+                $product_ids = [sanitize_text_field($raw_ids)];
+            }
+        } else {
+            error_log('🔍 CJ Import: NO product_ids found in POST!');
+            wp_send_json_error(['message' => 'No product IDs provided']);
+            return;
         }
+        
+        error_log('🔍 CJ Import: After initial processing - product_ids count: ' . count($product_ids));
+        error_log('🔍 CJ Import: product_ids: ' . json_encode($product_ids));
         
         $normalized_ids = [];
         foreach ($product_ids as $raw_id) {
             $raw_id = trim((string) $raw_id);
+            error_log('🔍 CJ Import: Processing raw_id: "' . $raw_id . '"');
             if ($raw_id === '') {
+                error_log('🔍 CJ Import: Skipping empty raw_id');
                 continue;
             }
 
             $extracted = '';
             if (strpos($raw_id, 'http') === 0 || strpos($raw_id, 'cjdropshipping.com') !== false) {
+                error_log('🔍 CJ Import: raw_id looks like URL, extracting product ID');
                 $extracted = cw_cj_extract_product_id_from_url($raw_id);
+                error_log('🔍 CJ Import: Extracted from URL: "' . $extracted . '"');
+            } else {
+                error_log('🔍 CJ Import: raw_id does not look like URL, using as-is');
+                $extracted = $raw_id;
             }
 
             $normalized_ids[] = $extracted !== '' ? $extracted : $raw_id;
@@ -927,46 +991,62 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
 
         $product_ids = array_values(array_unique(array_filter($normalized_ids)));
 
+        error_log('🔍 CJ Import: Final normalized product_ids: ' . json_encode($product_ids));
         error_log('CJ Import Links Mode: Received ' . count($product_ids) . ' product IDs: ' . json_encode($product_ids));
+        error_log('CJ Import: Raw POST product_ids: ' . json_encode($_POST['product_ids'] ?? []));
         
         if (empty($product_ids)) {
+            error_log('CJ Import: NO product IDs after normalization');
             wp_send_json_error(['message' => 'No valid CJ product links or IDs provided.']);
         }
         
         foreach ($product_ids as $product_id) {
+            error_log('CJ Import Links: Processing product ID ' . $product_id);
+            
+            if (empty($product_id)) {
+                error_log('CJ Import Links: Skipping empty product ID');
+                $skipped++;
+                continue;
+            }
+            
             // Fetch product details directly
+            error_log('CJ Import: Calling get_product_details() for product: ' . $product_id);
             $details = $cj->get_product_details($product_id, true);
             
             if (is_wp_error($details)) {
-                error_log('CJ Import: Failed to fetch product ' . $product_id . ' - ' . $details->get_error_message());
+                error_log('CJ API Error [get_product_details]: ' . $details->get_error_message());
                 $skipped++;
                 continue;
             }
             
             if (empty($details)) {
-                error_log('CJ Import: No data returned for product ' . $product_id);
-                $skipped++;
-                continue;
+                error_log('CJ Import: ⚠️ No details returned for product ' . $product_id);
+                // Try fetching without inventory features as fallback
+                error_log('CJ Import: Retrying without inventory features...');
+                $details = $cj->get_product_details($product_id, false);
+                
+                if (empty($details)) {
+                    error_log('CJ Import: Still no data. Skipping product ' . $product_id);
+                    $skipped++;
+                    continue;
+                }
+                
+                error_log('CJ Import: ✓ Got details on retry for product ' . $product_id);
+            } else {
+                error_log('CJ Import: ✓ Got details for product ' . $product_id . ', name: ' . ($details['productName'] ?? 'unknown'));
             }
             
             // Get all variants for this product
+            error_log('CJ Import: Fetching variants for product ' . $product_id);
             $variants = $cj->get_variants($product_id);
             
             if (empty($variants)) {
-                error_log('CJ Import: No variants for product ' . $product_id);
+                error_log('CJ Import: No variants returned for product ' . $product_id);
                 $skipped++;
                 continue;
             }
             
-            error_log('CJ Import: Found ' . count($variants) . ' variants for product ' . $product_id);
-            if (!empty($variants[0]) && is_array($variants[0])) {
-                $variant_keys = implode(', ', array_keys($variants[0]));
-                $variant_image = function_exists('cw_cj_get_variant_image_url') ? cw_cj_get_variant_image_url($variants[0]) : '';
-                error_log('CJ Import: Variant keys for product ' . $product_id . ' -> ' . $variant_keys);
-                if (!empty($variant_image)) {
-                    error_log('CJ Import: Variant image url sample for product ' . $product_id . ' -> ' . $variant_image);
-                }
-            }
+            error_log('CJ Import: ✓ Found ' . count($variants) . ' variant(s) for product ' . $product_id);
             
             // Check if product already exists (by CJ product ID)
             $existing = wc_get_products([
@@ -981,12 +1061,16 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 continue;
             }
             
-            // Prepare product data
+            // Prepare product data with all available info
             $product = [
                 'id' => $product_id,
-                'nameEn' => $details['productName'] ?? $details['productNameEn'] ?? 'Imported Product',
-                'productDescribeEn' => $details['productDescribeEn'] ?? $details['description'] ?? '',
-                'bigImage' => $details['productImage'] ?? '',
+                'pid' => $product_id,
+                'nameEn' => $details['productName'] ?? $details['productNameEn'] ?? $details['name'] ?? 'CJ Product',
+                'productName' => $details['productName'] ?? $details['productNameEn'] ?? $details['name'] ?? 'CJ Product',
+                'productDescribeEn' => $details['productDescribeEn'] ?? $details['description'] ?? $details['descriptionEn'] ?? '',
+                'description' => $details['productDescribeEn'] ?? $details['description'] ?? $details['descriptionEn'] ?? '',
+                'productImage' => $details['productImage'] ?? $details['mainImage'] ?? '',
+                'bigImage' => $details['productImage'] ?? $details['mainImage'] ?? '',
                 'variants' => $variants,
             ];
             
@@ -1012,13 +1096,23 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
             
             // Create variable product with all variants
             try {
+                error_log('CJ Import: Creating variable product for "' . $product['productName'] . '" with ' . count($variants) . ' variants');
+                error_log('CJ Import: Product data keys: ' . implode(', ', array_keys($product)));
                 $created_product_id = cw_cj_create_variable_product($product, $variants, $markup, $category_id);
                 
                 if (is_wp_error($created_product_id)) {
-                    error_log('CJ Import: Failed to create variable product - ' . $created_product_id->get_error_message());
+                    error_log('CJ Import: ✗ Failed to create variable product - ' . $created_product_id->get_error_message());
                     $skipped++;
                     continue;
                 }
+                
+                if (empty($created_product_id) || !is_numeric($created_product_id)) {
+                    error_log('CJ Import: ✗ Invalid product ID returned: ' . var_export($created_product_id, true));
+                    $skipped++;
+                    continue;
+                }
+                
+                error_log('CJ Import: ✓ Created WC product ID: ' . $created_product_id);
                 
                 // Download and attach main product images
                 if (!$skip_images) {
@@ -1032,6 +1126,7 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                     }
                     
                     if (!empty($image_urls)) {
+                        error_log('CJ Import: Attaching ' . count($image_urls) . ' image(s) to product ' . $created_product_id);
                         // Skip metadata generation during bulk import for speed (use true as 4th param)
                         $featured_id = cw_cj_sideload_image($image_urls[0], $created_product_id, $product['nameEn'], true);
                         if (!is_wp_error($featured_id)) {
@@ -1673,22 +1768,55 @@ function cw_cj_import_dashboard_shortcode($atts) {
             function extractProductId(url) {
                 url = url.trim();
 
-                // Common CJ format: ...-p-123456789.html
-                let match = url.match(/-p-(\d+)\.html/i);
-                if (match && match[1]) return match[1];
+                // PRIORITY 1: UUID format at end of URL before .html (e.g., -p-4BB39C1C-2AF0-4CC3-9D66-BAA427505625.html)
+                // UUIDs have format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                let match = url.match(/-p-([A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12})\.html/i);
+                if (match && match[1]) {
+                    console.log('Extracted UUID from -p- format:', match[1]);
+                    return match[1];
+                }
 
-                // Alternate format: /product/ID
-                match = url.match(/\/product\/([a-zA-Z0-9]+)/i);
-                if (match && match[1]) return match[1];
+                // PRIORITY 2: Legacy numeric format: ...-p-123456789.html
+                match = url.match(/-p-(\d+)\.html/i);
+                if (match && match[1]) {
+                    console.log('Extracted numeric ID from -p- format:', match[1]);
+                    return match[1];
+                }
 
-                // Query params: ?id=ID, ?pid=ID, ?productId=ID
-                match = url.match(/[?&](?:id|pid|productId|product_id)=([a-zA-Z0-9]+)/i);
-                if (match && match[1]) return match[1];
+                // PRIORITY 3: UUID directly after /product/ path
+                match = url.match(/\/product\/([A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12})/i);
+                if (match && match[1]) {
+                    console.log('Extracted UUID from /product/ path:', match[1]);
+                    return match[1];
+                }
 
-                // Hash params: #id=ID
-                match = url.match(/#.*id=([a-zA-Z0-9]+)/i);
-                if (match && match[1]) return match[1];
+                // PRIORITY 4: Extract everything from /product/ to first query string or end
+                // This avoids extracting just "2" from "2-in-1-product-name"
+                match = url.match(/\/product\/([^\/?#]+?)(?:\-p\-|\/|$)/i);
+                if (match && match[1]) {
+                    // Only use this if it looks like a product ID (UUID or numeric), not a product name
+                    const id = match[1];
+                    if (/^[A-Fa-f0-9\-]+$/.test(id) || /^\d+$/.test(id)) {
+                        console.log('Extracted ID from /product/ path:', id);
+                        return id;
+                    }
+                }
 
+                // PRIORITY 5: Query params: ?id=ID, ?pid=ID, ?productId=ID
+                match = url.match(/[?&](?:id|pid|productId|product_id)=([a-zA-Z0-9\-]+)/i);
+                if (match && match[1]) {
+                    console.log('Extracted ID from query params:', match[1]);
+                    return match[1];
+                }
+
+                // PRIORITY 6: Hash params: #id=ID
+                match = url.match(/#.*id=([a-zA-Z0-9\-]+)/i);
+                if (match && match[1]) {
+                    console.log('Extracted ID from hash params:', match[1]);
+                    return match[1];
+                }
+
+                console.log('Failed to extract product ID from:', url);
                 return null;
             }
             
@@ -1697,37 +1825,61 @@ function cw_cj_import_dashboard_shortcode($atts) {
             const markup = $('#import_link_markup_fe').val();
             const nonce = $('input[name="cw_cj_import_nonce"]').val();
             
+            console.log('========== CJ LINK IMPORT DEBUG ==========');
+            console.log('🔍 Form submission started');
+            console.log('🔍 Single Link field value:', singleLink);
+            console.log('🔍 Single Link length:', singleLink.length);
+            console.log('🔍 Bulk Links field value:', bulkLinks);
+            console.log('🔍 Bulk Links length:', bulkLinks.length);
+            
             let productIds = [];
             
             // Add single link if provided
             if (singleLink) {
+                console.log('🔍 STEP 1: Processing single link...');
+                console.log('   Input URL:', singleLink);
+                
                 const id = extractProductId(singleLink);
-                if (id) {
+                console.log('   Extracted ID:', id);
+                
+                if (id && id.length > 0) {
+                    console.log('   ✓ Valid ID extracted');
                     productIds.push(id);
                 } else {
-                    alert('❌ Invalid single product link. Please check the URL format.');
+                    console.log('   ✗ FAILED - No valid ID extracted!');
+                    alert('❌ Invalid single product link. Could not extract product ID.\n\nMake sure you pasted the complete URL from CJ Dropshipping.');
                     return;
                 }
             }
             
             // Add bulk links
             if (bulkLinks) {
+                console.log('🔍 STEP 2: Processing bulk links...');
                 const links = bulkLinks.split('\n');
+                console.log('   Found ' + links.length + ' line(s)');
+                
                 for (let i = 0; i < links.length; i++) {
                     const link = links[i].trim();
                     if (link) {
+                        console.log('   Line ' + (i + 1) + ': ' + link.substring(0, 50) + '...');
                         const id = extractProductId(link);
+                        console.log('   → Extracted: ' + id);
+                        
                         if (id) {
                             if (!productIds.includes(id)) {
                                 productIds.push(id);
                             }
                         } else {
+                            console.log('   ✗ FAILED to extract ID from line ' + (i + 1));
                             alert('❌ Invalid product link at line ' + (i + 1) + ': ' + link);
                             return;
                         }
                     }
                 }
             }
+            
+            console.log('🔍 FINAL: productIds array:', productIds);
+            console.log('========== END DEBUG ==========');
             
             if (productIds.length === 0) {
                 alert('❌ Please provide at least one product link');
@@ -1739,16 +1891,27 @@ function cw_cj_import_dashboard_shortcode($atts) {
             $('#cj-import-btn-text-links-fe').text('Processing...');
             $('#cj-import-btn-links-fe').prop('disabled', true);
             
+            // Build form data object
+            const formData = new FormData();
+            formData.append('action', 'cw_cj_import_ajax');
+            formData.append('cw_cj_import_nonce', nonce);
+            formData.append('mode', 'links');
+            formData.append('markup', markup);
+            
+            // Add each product ID as separate parameter
+            for (let i = 0; i < productIds.length; i++) {
+                formData.append('product_ids[]', productIds[i]);
+            }
+            
+            console.log('🔍 AJAX: Sending FormData with:');
+            console.log('   productIds array: ' + JSON.stringify(productIds));
+            
             $.ajax({
                 url: ajaxurl,
                 type: 'POST',
-                data: $.param({
-                    action: 'cw_cj_import_ajax',
-                    cw_cj_import_nonce: nonce,
-                    mode: 'links',
-                    product_ids: productIds,
-                    markup: markup
-                }, true),
+                data: formData,
+                processData: false,
+                contentType: false,
                 success: function(response) {
                     $('#cj-import-status-fe').hide();
                     $('#cj-import-btn-text-links-fe').text('Start Link Import');

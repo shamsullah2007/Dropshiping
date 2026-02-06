@@ -18,6 +18,12 @@ function cw_cj_admin_page() {
     if (!current_user_can('manage_options')) {
         wp_die('You do not have permission to access this page.');
     }
+    
+    // Prevent caching
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: ' . gmdate('r', 0));
+    
     if (!empty($_GET['cj_debug'])) {
         wp_die('CJ admin loaded from: ' . esc_html(__FILE__));
     }
@@ -512,7 +518,11 @@ function cw_cj_admin_page() {
     </div>
     
     <script>
+    // Version: <?php echo 'v' . time() . '-' . rand(1000, 9999); ?> - Force unique cachebust
+    console.log('[CJ Admin] SCRIPT LOADED - Timestamp: <?php echo time(); ?>');
     jQuery(function($) {
+        console.log('[CJ Admin] Page loaded - UUID extraction enabled');
+        
         // Handle Search Import
         $('#cj-import-form-search').on('submit', function(e) {
             e.preventDefault();
@@ -565,27 +575,29 @@ function cw_cj_admin_page() {
         // Handle Link Import
         $('#cj-import-form-links').on('submit', function(e) {
             e.preventDefault();
+            console.log('[CJ Link Import] Form submitted');
             
             // Extract CJ product ID from URL
             function extractProductId(url) {
+                console.log('[CJ Extract] Attempting to extract from:', url.substring(0, 100) + '...');
                 url = url.trim();
 
-                // Common CJ format: ...-p-123456789.html
-                let match = url.match(/-p-(\d+)\.html/i);
-                if (match && match[1]) return match[1];
+                // CJ format: ...-p-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX.html (UUID) or -p-123456789 (digits)
+                // Must match -p- followed by ID (letters/numbers/hyphens) and .html
+                let match = url.match(/-p-([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)\.html/i);
+                if (match && match[1]) {
+                    console.log('[CJ Extract] ✓ Found UUID/Digit format:', match[1]);
+                    return match[1];
+                }
 
-                // Alternate format: /product/ID
-                match = url.match(/\/product\/([a-zA-Z0-9]+)/i);
-                if (match && match[1]) return match[1];
+                // Alternative: Just digits in path (older format without .html extension)
+                match = url.match(/[?&]productId=(\d+)/i);
+                if (match && match[1]) {
+                    console.log('[CJ Extract] ✓ Found query param format:', match[1]);
+                    return match[1];
+                }
 
-                // Query params: ?id=ID, ?pid=ID, ?productId=ID
-                match = url.match(/[?&](?:id|pid|productId|product_id)=([a-zA-Z0-9]+)/i);
-                if (match && match[1]) return match[1];
-
-                // Hash params: #id=ID
-                match = url.match(/#.*id=([a-zA-Z0-9]+)/i);
-                if (match && match[1]) return match[1];
-
+                console.log('[CJ Extract] ✗ No product ID found in URL');
                 return null;
             }
             
@@ -632,22 +644,30 @@ function cw_cj_admin_page() {
                 return;
             }
             
+            console.log('[CJ Link Import] ✓ Extracted product IDs:', productIds);
+            
             $('#cj-import-status').show();
             $('#cj-import-results').hide();
             $('#cj-import-btn-text-links').text('Processing...');
             $('#cj-import-btn-links').prop('disabled', true);
             
+            // Build FormData to properly send array of product IDs
+            let formData = new FormData();
+            formData.append('action', 'cw_cj_import_ajax');
+            formData.append('cw_cj_import_nonce', nonce);
+            formData.append('mode', 'links');
+            formData.append('markup', markup);
+            formData.append('skip_images', skip_images ? 'true' : 'false');
+            productIds.forEach((id, index) => {
+                formData.append('product_ids[' + index + ']', id);
+            });
+            
             $.ajax({
                 url: ajaxurl,
                 type: 'POST',
-                data: $.param({
-                    action: 'cw_cj_import_ajax',
-                    cw_cj_import_nonce: nonce,
-                    mode: 'links',
-                    product_ids: productIds,
-                    markup: markup,
-                    skip_images: skip_images ? 'true' : 'false'
-                }, true),
+                data: formData,
+                contentType: false,
+                processData: false,
                 success: function(response) {
                     $('#cj-import-status').hide();
                     $('#cj-import-btn-text-links').text('Start Link Import');
