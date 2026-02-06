@@ -612,12 +612,6 @@
     margin-bottom: 8px;
 }
 
-.cj-variation-selected {
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: #6b7280;
-}
-
 .cj-variation-options {
     display: flex;
     flex-wrap: wrap;
@@ -663,16 +657,6 @@
     height: 100%;
     object-fit: cover;
     display: block;
-}
-
-.cj-swatch-label {
-    position: absolute;
-    bottom: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.75rem;
-    color: #6b7280;
-    white-space: nowrap;
 }
 
 .cj-swatch-text {

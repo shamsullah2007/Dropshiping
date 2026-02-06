@@ -189,10 +189,7 @@
             // Show swatches for Color or images, but NEVER for Size (Size is always text buttons)
             const useSwatch = !isSize && (isColor || hasImages);
 
-            console.log('[CJ] Attribute:', attrKey, 'Label:', labelText, 'isColor:', isColor, 'isSize:', isSize, 'hasImages:', hasImages, 'useSwatch:', useSwatch);
-
             if (!useSwatch && !isSize) {
-                console.log('[CJ] Skipping attribute (neither swatch nor size):', attrKey);
                 return;
             }
 
@@ -243,8 +240,6 @@
                     $list.append($btn);
                 }
             });
-
-            console.log('[CJ] Rendered', optionCount, 'options for', attrKey, 'as', (useSwatch ? 'swatches' : 'size buttons'));
 
             $group.append($list);
             $select.after($group);
