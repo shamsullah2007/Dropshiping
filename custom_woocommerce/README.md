@@ -89,3 +89,4 @@ A lightweight WooCommerce-ready theme with a modern header/footer and subtle ani
 
 Register page: [cw_register]
 Login page: [cw_login]
+page for importing products :[cj_import_dashboard]
