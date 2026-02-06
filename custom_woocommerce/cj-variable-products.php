@@ -17,6 +17,30 @@ if (!defined('ABSPATH')) {
  * @return array<string, string>
  */
 function cw_cj_parse_variant_attributes($variant) {
+    if (!empty($variant['variantProperty']) && is_array($variant['variantProperty'])) {
+        $attrs = [];
+
+        foreach ($variant['variantProperty'] as $prop) {
+            if (!is_array($prop)) {
+                continue;
+            }
+
+            $name = $prop['propertyName'] ?? $prop['propertyNameEn'] ?? $prop['name'] ?? $prop['attrName'] ?? '';
+            $value = $prop['propertyValue'] ?? $prop['propertyValueEn'] ?? $prop['value'] ?? $prop['attrValue'] ?? '';
+
+            $name = is_string($name) ? trim($name) : '';
+            $value = is_string($value) ? trim($value) : '';
+
+            if ($name !== '' && $value !== '') {
+                $attrs[$name] = $value;
+            }
+        }
+
+        if (!empty($attrs)) {
+            return $attrs;
+        }
+    }
+
     $raw = $variant['variantName'] ?? $variant['variantNameEn'] ?? $variant['variantKey'] ?? $variant['variantKeyEn'] ?? '';
     $raw = is_string($raw) ? trim($raw) : '';
 

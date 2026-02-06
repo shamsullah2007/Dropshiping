@@ -90,6 +90,16 @@
         return /size|option/i.test(name + ' ' + label);
     }
 
+    function attributeHasImages(variations, attrKey) {
+        for (let i = 0; i < variations.length; i++) {
+            const attrs = variations[i].attributes || {};
+            if (attrs[attrKey] && variations[i].cj_variant_image) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function getFirstMatchingImage(variations, attrKey, value) {
         for (let i = 0; i < variations.length; i++) {
             const attrs = variations[i].attributes || {};
@@ -172,7 +182,12 @@
             }
 
             const isColor = isColorAttribute(attrKey, labelText);
-            const isSize = isSizeAttribute(attrKey, labelText) || !isColor;
+            const useSwatch = isColor || attributeHasImages(variations, attrKey);
+            const isSize = !useSwatch && (isSizeAttribute(attrKey, labelText) || !isColor);
+
+            if (!useSwatch && !isSize) {
+                return;
+            }
 
             if ($select.next('.cj-variation-group').length) {
                 return;
@@ -182,10 +197,10 @@
 
             const $group = $('<div class="cj-variation-group"></div>');
             $group.attr('data-attribute', attrKey);
-            $group.append('<div class="cj-variation-label">' + (labelText || (isColor ? 'Color' : 'Size')) + '</div>');
+            $group.append('<div class="cj-variation-label">' + (labelText || (useSwatch ? 'Color' : 'Size')) + '</div>');
 
             const $list = $('<div class="cj-variation-options"></div>');
-            if (isColor) {
+            if (useSwatch) {
                 $list.addClass('cj-swatch-list');
             } else {
                 $list.addClass('cj-size-list');
@@ -198,7 +213,7 @@
                     return;
                 }
 
-                if (isColor) {
+                if (useSwatch) {
                     const imgUrl = getFirstMatchingImage(variations, attrKey, value);
                     const $btn = $('<button type="button" class="cj-swatch" data-value="' + value + '"></button>');
                     if (imgUrl) {
