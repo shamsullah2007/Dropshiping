@@ -372,7 +372,7 @@ function custom_woocommerce_enqueue_assets()
         wp_enqueue_script(
             'custom-woocommerce-single-product',
             get_template_directory_uri() . '/assets/js/single-product.js',
-            [],
+            ['jquery', 'wc-add-to-cart-variation'],
             '1.0.3',
             true
         );
@@ -399,6 +399,27 @@ function custom_woocommerce_enqueue_assets()
     }
 }
 add_action('wp_enqueue_scripts', 'custom_woocommerce_enqueue_assets');
+
+/**
+ * Extend variation data with CJ variant image URL and SKU.
+ */
+function custom_woocommerce_extend_variation_data($data, $product, $variation) {
+    $cj_image_url = $variation->get_meta('_cj_variant_image_url');
+    $attachment_id = $variation->get_image_id();
+
+    if ($attachment_id) {
+        $data['cj_variant_image'] = wp_get_attachment_image_url($attachment_id, 'large');
+        $data['cj_variant_thumb'] = wp_get_attachment_image_url($attachment_id, 'thumbnail');
+    } elseif (!empty($cj_image_url)) {
+        $data['cj_variant_image'] = $cj_image_url;
+        $data['cj_variant_thumb'] = $cj_image_url;
+    }
+
+    $data['cj_variant_sku'] = $variation->get_sku();
+
+    return $data;
+}
+add_filter('woocommerce_available_variation', 'custom_woocommerce_extend_variation_data', 10, 3);
 
 /**
  * Override WooCommerce single product template with CJ styling

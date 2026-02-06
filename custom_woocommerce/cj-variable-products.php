@@ -54,6 +54,32 @@ function cw_cj_parse_variant_attributes($variant) {
 }
 
 /**
+ * Extract a usable variant image URL from CJ data.
+ *
+ * @param array $variant CJ variant data
+ * @return string
+ */
+function cw_cj_get_variant_image_url($variant) {
+    $keys = [
+        'variantImage',
+        'variantImageUrl',
+        'variantImg',
+        'image',
+        'imageUrl',
+        'img',
+        'variantImageThumb',
+    ];
+
+    foreach ($keys as $key) {
+        if (!empty($variant[$key]) && is_string($variant[$key])) {
+            return $variant[$key];
+        }
+    }
+
+    return '';
+}
+
+/**
  * Create a WooCommerce variable product from CJ data.
  *
  * @param array $product CJ product data
@@ -152,12 +178,30 @@ function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $cate
 
         $variation->set_attributes($variation_attrs);
 
+        $sku = $variant['variantSku'] ?? $variant['sku'] ?? $variant['SKU'] ?? '';
+        if (!empty($sku)) {
+            $variation->set_sku($sku);
+        }
+
         $cj_variant_id = $variant['vid'] ?? $variant['variantId'] ?? $variant['id'] ?? '';
         if (!empty($cj_product_id)) {
             $variation->update_meta_data('_cj_product_id', $cj_product_id);
         }
         if (!empty($cj_variant_id)) {
             $variation->update_meta_data('_cj_variant_id', $cj_variant_id);
+        }
+
+        $variant_image_url = cw_cj_get_variant_image_url($variant);
+        if (!empty($variant_image_url)) {
+            $variation->update_meta_data('_cj_variant_image_url', $variant_image_url);
+
+            // Try to attach variation image for WooCommerce compatibility
+            if (function_exists('cw_cj_sideload_image')) {
+                $variant_img_id = cw_cj_sideload_image($variant_image_url, $product_id, $product_name, true);
+                if (!is_wp_error($variant_img_id)) {
+                    $variation->set_image_id($variant_img_id);
+                }
+            }
         }
 
         $variation->save();

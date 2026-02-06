@@ -715,6 +715,14 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
             }
             
             error_log('CJ Import: Found ' . count($variants) . ' variants for product ' . $product_id);
+            if (!empty($variants[0]) && is_array($variants[0])) {
+                $variant_keys = implode(', ', array_keys($variants[0]));
+                $variant_image = function_exists('cw_cj_get_variant_image_url') ? cw_cj_get_variant_image_url($variants[0]) : '';
+                error_log('CJ Import: Variant keys for product ' . $product_id . ' -> ' . $variant_keys);
+                if (!empty($variant_image)) {
+                    error_log('CJ Import: Variant image url sample for product ' . $product_id . ' -> ' . $variant_image);
+                }
+            }
             
             // Check if product already exists (by CJ product ID)
             $existing = wc_get_products([
@@ -887,6 +895,14 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 }
                 
                 error_log('CJ Import: Found ' . count($variants) . ' variants for product ' . ($product['id'] ?? 'unknown'));
+                if (!empty($variants[0]) && is_array($variants[0])) {
+                    $variant_keys = implode(', ', array_keys($variants[0]));
+                    $variant_image = function_exists('cw_cj_get_variant_image_url') ? cw_cj_get_variant_image_url($variants[0]) : '';
+                    error_log('CJ Import: Variant keys for product ' . ($product['id'] ?? 'unknown') . ' -> ' . $variant_keys);
+                    if (!empty($variant_image)) {
+                        error_log('CJ Import: Variant image url sample for product ' . ($product['id'] ?? 'unknown') . ' -> ' . $variant_image);
+                    }
+                }
                 
                 // Check if product already exists (by CJ product ID)
                 if (!empty($product['id'])) {
