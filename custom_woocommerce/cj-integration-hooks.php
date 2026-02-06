@@ -411,6 +411,9 @@ function cw_cj_sideload_image($url, $post_id, $desc = '') {
  * Import products from CJ catalog (Simplified - no images)
  */
 add_action('wp_ajax_cw_cj_import_ajax', function() {
+    if (function_exists('set_time_limit')) {
+        set_time_limit(0);
+    }
     // Security check
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => 'Unauthorized']);
@@ -439,6 +442,8 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
     
     // Debug logging
     error_log('CJ Import Response: ' . json_encode($result));
+    $total_records = $result['data']['totalRecords'] ?? $result['totalRecords'] ?? null;
+    error_log('CJ Import: Requested size ' . $limit . ' | Total records ' . (is_null($total_records) ? 'unknown' : $total_records));
     
     // Check for errors
     if (is_wp_error($result)) {
@@ -488,12 +493,22 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 continue;
             }
             
-            // Check if product already exists
-            $existing = wc_get_products([
-                'meta_key' => '_cj_variant_id',
-                'meta_value' => $variant['vid'],
-                'limit' => 1,
-            ]);
+            // Check if product already exists (prefer CJ product ID)
+            $existing = [];
+            if (!empty($product['id'])) {
+                $existing = wc_get_products([
+                    'meta_key' => '_cj_product_id',
+                    'meta_value' => $product['id'],
+                    'limit' => 1,
+                ]);
+            }
+            if (empty($existing)) {
+                $existing = wc_get_products([
+                    'meta_key' => '_cj_variant_id',
+                    'meta_value' => $variant['vid'],
+                    'limit' => 1,
+                ]);
+            }
             
             if (!empty($existing)) {
                 $skipped++;
@@ -508,7 +523,16 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
 
             $description = $product['productDescribeEn'] ?? $details['description'] ?? $details['productDescribeEn'] ?? '';
 
-            $category_name = $product['threeCategoryName'] ?? $product['twoCategoryName'] ?? $product['oneCategoryName'] ?? '';
+            $category_name = $details['categoryName'] ?? $details['categoryNameEn'] ?? '';
+            if (empty($category_name) && !empty($details['categoryList']) && is_array($details['categoryList'])) {
+                $first_category = reset($details['categoryList']);
+                if (is_array($first_category)) {
+                    $category_name = $first_category['name'] ?? $first_category['categoryName'] ?? $first_category['categoryNameEn'] ?? '';
+                }
+            }
+            if (empty($category_name)) {
+                $category_name = $product['threeCategoryName'] ?? $product['twoCategoryName'] ?? $product['oneCategoryName'] ?? '';
+            }
             $category_ids = [];
             if (!empty($category_name)) {
                 $term = term_exists($category_name, 'product_cat');
@@ -539,6 +563,10 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 'regular_price' => (string) round($your_price, 2),
                 'meta_data' => [
                     [
+                        'key' => '_cj_product_id',
+                        'value' => $product['id'] ?? '',
+                    ],
+                    [
                         'key' => '_cj_variant_id',
                         'value' => $variant['vid'],
                     ],
@@ -564,9 +592,14 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 $product_id = $wc_product->save();
                 
                 if (!$product_id) {
+                    error_log('CJ Import: Failed to save product ' . ($product['nameEn'] ?? 'unknown'));
                     $skipped++;
                     continue;
                 }
+                
+                error_log('CJ Import: Created product ID ' . $product_id . ' - ' . ($product['nameEn'] ?? 'Unnamed'));
+                error_log('CJ Import: Product description: ' . (empty($description) ? '[EMPTY]' : '[SET - ' . strlen($description) . ' chars]'));
+                error_log('CJ Import: Product category: ' . (empty($category_name) ? '[NONE]' : $category_name));
                 
                 // Download and attach images
                 $image_urls = [];
@@ -580,12 +613,15 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                     $image_urls = [$product['bigImage']];
                 }
 
+                error_log('CJ Import: Found ' . count($image_urls) . ' images for product ' . $product_id);
+
                 if (!empty($image_urls)) {
                     $featured_id = cw_cj_sideload_image($image_urls[0], $product_id, $product['nameEn'] ?? 'CJ Product');
                     if (!is_wp_error($featured_id)) {
                         set_post_thumbnail($product_id, $featured_id);
+                        error_log('CJ Import: Featured image attached (ID: ' . $featured_id . ') to product ' . $product_id);
                     } else {
-                        error_log('CJ Import: Image download failed - ' . $featured_id->get_error_message());
+                        error_log('CJ Import: Featured image failed for product ' . $product_id . ' - ' . $featured_id->get_error_message());
                     }
 
                     $gallery_ids = [];
@@ -593,11 +629,16 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                         $image_id = cw_cj_sideload_image($image_urls[$i], $product_id, $product['nameEn'] ?? 'CJ Product');
                         if (!is_wp_error($image_id)) {
                             $gallery_ids[] = $image_id;
+                            error_log('CJ Import: Gallery image ' . ($i) . ' attached (ID: ' . $image_id . ')');
+                        } else {
+                            error_log('CJ Import: Gallery image ' . ($i) . ' failed - ' . $image_id->get_error_message());
                         }
                     }
                     if (!empty($gallery_ids)) {
                         update_post_meta($product_id, '_product_image_gallery', implode(',', $gallery_ids));
                     }
+                } else {
+                    error_log('CJ Import: No images found for product ' . $product_id);
                 }
 
                 $imported++;
