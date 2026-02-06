@@ -406,17 +406,26 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
     $skipped = 0;
     
     foreach ($content as $item) {
-        if (!isset($item['productList'])) continue;
+        if (!isset($item['productList'])) {
+            continue;
+        }
         
         foreach ($item['productList'] as $product) {
-            if (empty($product['variants'])) {
+            $variants = $product['variants'] ?? [];
+            if (empty($variants)) {
+                $variants = $cj->get_variants($product['id'] ?? '', 'US');
+            }
+
+            if (empty($variants)) {
+                error_log('CJ Import: No variants for product ' . ($product['id'] ?? 'unknown'));
                 $skipped++;
                 continue;
             }
             
             // Get first variant
-            $variant = reset($product['variants']);
+            $variant = reset($variants);
             if (empty($variant['vid'])) {
+                error_log('CJ Import: Missing vid for product ' . ($product['id'] ?? 'unknown'));
                 $skipped++;
                 continue;
             }
@@ -434,7 +443,13 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
             }
             
             // Calculate price with markup
-            $cj_price = floatval($variant['salePrice'] ?? 10);
+            $raw_price = $variant['salePrice'] ?? $variant['sellPrice'] ?? $product['nowPrice'] ?? $product['sellPrice'] ?? '10';
+            if (is_string($raw_price)) {
+                $raw_price = preg_replace('/[^0-9\.\-]/', '', $raw_price);
+                $raw_price = explode('-', $raw_price)[0];
+                $raw_price = explode('--', $raw_price)[0];
+            }
+            $cj_price = floatval($raw_price ?: 10);
             $your_price = $cj_price * (1 + $markup);
             
             // Create WooCommerce product
