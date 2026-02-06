@@ -785,6 +785,21 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                         if (!is_wp_error($featured_id)) {
                             set_post_thumbnail($created_product_id, $featured_id);
                             error_log('CJ Import: Featured image attached (ID: ' . $featured_id . ') to product ' . $created_product_id);
+                            
+                            // Add remaining images as gallery images
+                            $gallery_ids = [];
+                            for ($i = 1; $i < count($image_urls); $i++) {
+                                $gallery_img_id = cw_cj_sideload_image($image_urls[$i], $created_product_id, $product['nameEn'], true);
+                                if (!is_wp_error($gallery_img_id)) {
+                                    $gallery_ids[] = $gallery_img_id;
+                                }
+                            }
+                            
+                            // Set gallery images meta
+                            if (!empty($gallery_ids)) {
+                                update_post_meta($created_product_id, '_product_image_gallery', implode(',', $gallery_ids));
+                                error_log('CJ Import: Added ' . count($gallery_ids) . ' gallery images to product ' . $created_product_id);
+                            }
                         } else {
                             error_log('CJ Import: Image download failed - ' . $featured_id->get_error_message());
                         }
@@ -953,6 +968,21 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                             if (!is_wp_error($featured_id)) {
                                 set_post_thumbnail($product_id, $featured_id);
                                 error_log('CJ Import: Featured image attached (ID: ' . $featured_id . ') to variable product ' . $product_id);
+                                
+                                // Add remaining images as gallery/attachment images
+                                $gallery_ids = [];
+                                for ($i = 1; $i < count($image_urls); $i++) {
+                                    $gallery_img_id = cw_cj_sideload_image($image_urls[$i], $product_id, $product['nameEn'] ?? 'CJ Product', true);
+                                    if (!is_wp_error($gallery_img_id)) {
+                                        $gallery_ids[] = $gallery_img_id;
+                                    }
+                                }
+                                
+                                // Set gallery images meta
+                                if (!empty($gallery_ids)) {
+                                    update_post_meta($product_id, '_product_image_gallery', implode(',', $gallery_ids));
+                                    error_log('CJ Import: Added ' . count($gallery_ids) . ' gallery images to product ' . $product_id);
+                                }
                             } else {
                                 error_log('CJ Import: Image download failed - ' . $featured_id->get_error_message());
                             }
