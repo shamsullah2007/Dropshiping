@@ -257,6 +257,18 @@ get_header();
                 <div class="cj-description">Start with 10</div>
             </div>
             
+            <div class="cj-form-group">
+                <label style="display: flex; align-items: center; cursor: pointer; text-transform: none;">
+                    <input type="checkbox" 
+                           id="skip_images_search_fe" 
+                           name="skip_images" 
+                           value="1"
+                           style="width: auto; margin-right: 8px;">
+                    Skip Images (Faster Import)
+                </label>
+                <div class="cj-description">Import products without images for 3-5x faster speed. You can add images later.</div>
+            </div>
+            
             <button type="submit" class="cj-button" id="cj-import-btn-search-fe">
                 <span id="cj-import-btn-text-search-fe">Start Search Import</span>
             </button>
@@ -297,10 +309,21 @@ get_header();
                     <div class="cj-description">50 = 50% markup</div>
                 </div>
                 
-                <button type="submit" class="cj-button" id="cj-import-btn-links-fe">
-                    <span id="cj-import-btn-text-links-fe">Start Link Import</span>
-                </button>
+                <div class="cj-form-group">
+                    <label style="display: flex; align-items: center; cursor: pointer; text-transform: none;">
+                        <input type="checkbox" 
+                               id="skip_images_links_fe" 
+                               name="skip_images" 
+                               value="1"
+                               style="width: auto; margin-right: 8px;">
+                        Skip Images (Faster)
+                    </label>
+                    <div class="cj-description">3-5x faster speed</div>
+                </div>
             </div>
+            <button type="submit" class="cj-button" id="cj-import-btn-links-fe" style="margin-top: 10px;">
+                <span id="cj-import-btn-text-links-fe">Start Link Import</span>
+            </button>
         </form>
         
         <div class="cj-import-status" id="cj-import-status-fe">
@@ -327,6 +350,7 @@ jQuery(function($) {
         const search = $('#import_search_fe').val();
         const markup = $('#import_markup_fe').val();
         const limit = $('#import_limit_fe').val();
+        const skip_images = $('#skip_images_search_fe').is(':checked');
         const nonce = $('input[name="cw_cj_import_nonce"]').val();
         
         $('#cj-import-status-fe').show();
@@ -343,7 +367,8 @@ jQuery(function($) {
                 mode: 'search',
                 search: search,
                 markup: markup,
-                limit: limit
+                limit: limit,
+                skip_images: skip_images ? 'true' : 'false'
             },
             success: function(response) {
                 $('#cj-import-status-fe').hide();
@@ -388,6 +413,7 @@ jQuery(function($) {
         const singleLink = $('#import_single_link_fe').val().trim();
         const bulkLinks = $('#import_bulk_links_fe').val().trim();
         const markup = $('#import_link_markup_fe').val();
+        const skip_images = $('#skip_images_links_fe').is(':checked');
         const nonce = $('input[name="cw_cj_import_nonce"]').val();
         
         let productIds = [];

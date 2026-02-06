@@ -7,7 +7,20 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+function cw_cj_admin_page_v2() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have permission to access this page.');
+    }
+    cw_cj_admin_page();
+}
+
 function cw_cj_admin_page() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have permission to access this page.');
+    }
+    if (!empty($_GET['cj_debug'])) {
+        wp_die('CJ admin loaded from: ' . esc_html(__FILE__));
+    }
     // Handle form submission
     if (isset($_POST['submit']) && check_admin_referer('cw_cj_settings')) {
         $cj = cw_cj_dropshipping();
@@ -215,6 +228,46 @@ function cw_cj_admin_page() {
             align-items: end;
         }
         
+        .cj-import-section-search {
+            border: 3px solid #667eea !important;
+            background: #f8f9ff !important;
+            padding: 24px !important;
+            border-radius: 12px !important;
+            margin-bottom: 30px !important;
+        }
+        
+        .cj-import-section-search h3 {
+            color: #667eea !important;
+            margin: 0 0 8px 0 !important;
+            font-size: 20px !important;
+            font-weight: 700 !important;
+        }
+        
+        .cj-import-section-search > p {
+            color: #666 !important;
+            margin-bottom: 16px !important;
+        }
+        
+        .cj-import-section-links {
+            border: 3px solid #10b981 !important;
+            background: #f0fdf4 !important;
+            padding: 24px !important;
+            border-radius: 12px !important;
+            margin-bottom: 20px !important;
+        }
+        
+        .cj-import-section-links h3 {
+            color: #10b981 !important;
+            margin: 0 0 8px 0 !important;
+            font-size: 20px !important;
+            font-weight: 700 !important;
+        }
+        
+        .cj-import-section-links > p {
+            color: #666 !important;
+            margin-bottom: 16px !important;
+        }
+        
         .cj-notice {
             padding: 16px 20px;
             border-radius: 8px;
@@ -269,6 +322,9 @@ function cw_cj_admin_page() {
     </style>
     
     <div class="cj-dashboard">
+        <div style="background: #dc2626; color: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-weight: 700;">
+            DEBUG: Loaded CJ admin from this file: <?php echo esc_html(__FILE__); ?>
+        </div>
         <div class="cj-header">
             <h1>🚀 CJ Dropshipping Hub</h1>
             <p>Manage your dropshipping integration - Import products, check balance, monitor performance</p>
@@ -332,12 +388,14 @@ function cw_cj_admin_page() {
         
         <!-- Product Import -->
         <div class="cj-section">
-            <h2>📥 Import Products</h2>
+            <h2>📥 Import Products <span style="font-size: 12px; background: #111827; color: #f9fafb; padding: 3px 8px; border-radius: 999px; margin-left: 8px;">CJ Admin v2</span></h2>
             <p style="color: #6b7280; margin-bottom: 20px; line-height: 1.6;">
                 Automatically import CJ products with titles, descriptions, and pricing. Products are instantly linked to CJ variants for automatic order creation.
             </p>
             
-            <form id="cj-import-form" class="cj-import-form">
+            <!-- Search Import Form -->
+            <h3 style="color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px;">Method 1: Search by Keyword</h3>
+            <form id="cj-import-form-search" class="cj-import-form" style="margin-bottom: 40px;">
                 <?php wp_nonce_field('cw_cj_import', 'cw_cj_import_nonce'); ?>
                 
                 <div class="cj-form-group">
@@ -371,8 +429,72 @@ function cw_cj_admin_page() {
                     <div class="cj-description">Start with 10</div>
                 </div>
                 
-                <button type="submit" class="cj-button">
-                    <span id="cj-import-btn-text">Start Import</span>
+                <div class="cj-form-group">
+                    <label style="display: flex; align-items: center; cursor: pointer; text-transform: none;">
+                        <input type="checkbox" 
+                               id="skip_images_search" 
+                               name="skip_images" 
+                               value="1"
+                               style="width: auto; margin-right: 8px;">
+                        Skip Images (Faster Import)
+                    </label>
+                    <div class="cj-description">Import products without images for 3-5x faster speed. You can add images later.</div>
+                </div>
+                
+                <button type="submit" class="cj-button" id="cj-import-btn-search">
+                    <span id="cj-import-btn-text-search">Start Search Import</span>
+                </button>
+            </form>
+            
+            <!-- Link Import Form -->
+            <h3 style="color: #10b981; border-bottom: 2px solid #10b981; padding-bottom: 10px;">Method 2: Import by Product Links</h3>
+            <form id="cj-import-form-links" style="margin-bottom: 20px;">
+                <?php wp_nonce_field('cw_cj_import', 'cw_cj_import_nonce'); ?>
+                
+                <div class="cj-form-group">
+                    <label for="import_single_link">Single Product Link</label>
+                    <input type="text" 
+                           id="import_single_link" 
+                           name="import_single_link" 
+                           placeholder="https://cjdropshipping.com/product/...">
+                    <div class="cj-description">Paste a single CJ product link to import one product</div>
+                </div>
+                
+                <div class="cj-form-group">
+                    <label for="import_bulk_links">Bulk Product Links</label>
+                    <textarea id="import_bulk_links" 
+                              name="import_bulk_links" 
+                              placeholder="Paste multiple CJ product links (one per line)&#10;https://cjdropshipping.com/product/...&#10;https://cjdropshipping.com/product/..."
+                              style="width: 100%; min-height: 120px; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-family: monospace; font-size: 14px;"></textarea>
+                    <div class="cj-description">One link per line. Single link will be imported first if provided.</div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: auto auto; gap: 20px; align-items: end;">
+                    <div class="cj-form-group">
+                        <label for="import_link_markup">Price Markup (%)</label>
+                        <input type="number" 
+                               id="import_link_markup" 
+                               name="import_link_markup" 
+                               value="50" 
+                               min="0" 
+                               max="500">
+                        <div class="cj-description">50 = 50% markup</div>
+                    </div>
+                    
+                    <div class="cj-form-group">
+                        <label style="display: flex; align-items: center; cursor: pointer; text-transform: none;">
+                            <input type="checkbox" 
+                                   id="skip_images_links" 
+                                   name="skip_images" 
+                                   value="1"
+                                   style="width: auto; margin-right: 8px;">
+                            Skip Images (Faster)
+                        </label>
+                        <div class="cj-description">3-5x faster speed</div>
+                    </div>
+                </div>
+                <button type="submit" class="cj-button" id="cj-import-btn-links" style="margin-top: 10px;">
+                    <span id="cj-import-btn-text-links">Start Link Import</span>
                 </button>
             </form>
             
@@ -391,17 +513,20 @@ function cw_cj_admin_page() {
     
     <script>
     jQuery(function($) {
-        $('#cj-import-form').on('submit', function(e) {
+        // Handle Search Import
+        $('#cj-import-form-search').on('submit', function(e) {
             e.preventDefault();
             
             const search = $('#import_search').val();
             const markup = $('#import_markup').val();
             const limit = $('#import_limit').val();
+            const skip_images = $('#skip_images_search').is(':checked');
             const nonce = $('input[name="cw_cj_import_nonce"]').val();
             
             $('#cj-import-status').show();
             $('#cj-import-results').hide();
-            $('#cj-import-btn-text').text('Processing...');
+            $('#cj-import-btn-text-search').text('Processing...');
+            $('#cj-import-btn-search').prop('disabled', true);
             
             $.ajax({
                 url: ajaxurl,
@@ -409,13 +534,16 @@ function cw_cj_admin_page() {
                 data: {
                     action: 'cw_cj_import_ajax',
                     cw_cj_import_nonce: nonce,
+                    mode: 'search',
                     search: search,
                     markup: markup,
-                    limit: limit
+                    limit: limit,
+                    skip_images: skip_images ? 'true' : 'false'
                 },
                 success: function(response) {
                     $('#cj-import-status').hide();
-                    $('#cj-import-btn-text').text('Start Import');
+                    $('#cj-import-btn-text-search').text('Start Search Import');
+                    $('#cj-import-btn-search').prop('disabled', false);
                     
                     if (response.success) {
                         $('#cj-import-success-msg').html('✓ ' + response.data.message);
@@ -426,7 +554,120 @@ function cw_cj_admin_page() {
                 },
                 error: function(xhr) {
                     $('#cj-import-status').hide();
-                    $('#cj-import-btn-text').text('Start Import');
+                    $('#cj-import-btn-text-search').text('Start Search Import');
+                    $('#cj-import-btn-search').prop('disabled', false);
+                    const message = xhr?.responseJSON?.data?.message || xhr?.responseText || 'Request failed.';
+                    alert('❌ ' + message);
+                }
+            });
+        });
+        
+        // Handle Link Import
+        $('#cj-import-form-links').on('submit', function(e) {
+            e.preventDefault();
+            
+            // Extract CJ product ID from URL
+            function extractProductId(url) {
+                url = url.trim();
+
+                // Common CJ format: ...-p-123456789.html
+                let match = url.match(/-p-(\d+)\.html/i);
+                if (match && match[1]) return match[1];
+
+                // Alternate format: /product/ID
+                match = url.match(/\/product\/([a-zA-Z0-9]+)/i);
+                if (match && match[1]) return match[1];
+
+                // Query params: ?id=ID, ?pid=ID, ?productId=ID
+                match = url.match(/[?&](?:id|pid|productId|product_id)=([a-zA-Z0-9]+)/i);
+                if (match && match[1]) return match[1];
+
+                // Hash params: #id=ID
+                match = url.match(/#.*id=([a-zA-Z0-9]+)/i);
+                if (match && match[1]) return match[1];
+
+                return null;
+            }
+            
+            const singleLink = $('#import_single_link').val().trim();
+            const bulkLinks = $('#import_bulk_links').val().trim();
+            const markup = $('#import_link_markup').val();
+            const skip_images = $('#skip_images_links').is(':checked');
+            const nonce = $('input[name="cw_cj_import_nonce"]').val();
+            
+            let productIds = [];
+            
+            // Add single link if provided
+            if (singleLink) {
+                const id = extractProductId(singleLink);
+                if (id) {
+                    productIds.push(id);
+                } else {
+                    alert('❌ Invalid single product link. Please check the URL format.');
+                    return;
+                }
+            }
+            
+            // Add bulk links
+            if (bulkLinks) {
+                const links = bulkLinks.split('\n');
+                for (let i = 0; i < links.length; i++) {
+                    const link = links[i].trim();
+                    if (link) {
+                        const id = extractProductId(link);
+                        if (id) {
+                            if (!productIds.includes(id)) {
+                                productIds.push(id);
+                            }
+                        } else {
+                            alert('❌ Invalid product link at line ' + (i + 1) + ': ' + link);
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            if (productIds.length === 0) {
+                alert('❌ Please provide at least one product link');
+                return;
+            }
+            
+            $('#cj-import-status').show();
+            $('#cj-import-results').hide();
+            $('#cj-import-btn-text-links').text('Processing...');
+            $('#cj-import-btn-links').prop('disabled', true);
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: $.param({
+                    action: 'cw_cj_import_ajax',
+                    cw_cj_import_nonce: nonce,
+                    mode: 'links',
+                    product_ids: productIds,
+                    markup: markup,
+                    skip_images: skip_images ? 'true' : 'false'
+                }, true),
+                success: function(response) {
+                    $('#cj-import-status').hide();
+                    $('#cj-import-btn-text-links').text('Start Link Import');
+                    $('#cj-import-btn-links').prop('disabled', false);
+                    
+                    if (response.success) {
+                        $('#cj-import-success-msg').html('✓ ' + response.data.message);
+                        $('#cj-import-results').show();
+                        
+                        // Reset form
+                        $('#import_single_link').val('');
+                        $('#import_bulk_links').val('');
+                    } else {
+                        alert('❌ ' + (response.data?.message || 'Unknown error'));
+                    }
+                },
+                error: function(xhr) {
+                    $('#cj-import-status').hide();
+                    $('#cj-import-btn-text-links').text('Start Link Import');
+                    $('#cj-import-btn-links').prop('disabled', false);
                     const message = xhr?.responseJSON?.data?.message || xhr?.responseText || 'Request failed.';
                     alert('❌ ' + message);
                 }
