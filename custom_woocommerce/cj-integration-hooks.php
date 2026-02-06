@@ -350,6 +350,64 @@ add_action('admin_init', function() {
 // ==================== PRODUCT IMPORT ====================
 
 /**
+ * Download and attach an image from a URL without checksum validation.
+ * Returns attachment ID or WP_Error.
+ */
+function cw_cj_sideload_image($url, $post_id, $desc = '') {
+    if (empty($url)) {
+        return new WP_Error('cj_image_empty', 'Image URL is empty.');
+    }
+
+    $response = wp_remote_get($url, [
+        'timeout' => 30,
+        'redirection' => 5,
+    ]);
+
+    if (is_wp_error($response)) {
+        return $response;
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    if ($code < 200 || $code >= 300) {
+        return new WP_Error('cj_image_http', 'Image download failed with HTTP ' . $code);
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    if (empty($body)) {
+        return new WP_Error('cj_image_empty_body', 'Image download returned empty body.');
+    }
+
+    $filename = basename(parse_url($url, PHP_URL_PATH));
+    if (empty($filename)) {
+        $filename = 'cj-image-' . time() . '.jpg';
+    }
+
+    $upload = wp_upload_bits($filename, null, $body);
+    if (!empty($upload['error'])) {
+        return new WP_Error('cj_image_upload', $upload['error']);
+    }
+
+    $filetype = wp_check_filetype($upload['file'], null);
+    $attachment = [
+        'post_mime_type' => $filetype['type'] ?? 'image/jpeg',
+        'post_title' => sanitize_text_field($desc ?: $filename),
+        'post_content' => '',
+        'post_status' => 'inherit',
+    ];
+
+    $attachment_id = wp_insert_attachment($attachment, $upload['file'], $post_id);
+    if (is_wp_error($attachment_id)) {
+        return $attachment_id;
+    }
+
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    $attach_data = wp_generate_attachment_metadata($attachment_id, $upload['file']);
+    wp_update_attachment_metadata($attachment_id, $attach_data);
+
+    return $attachment_id;
+}
+
+/**
  * Import products from CJ catalog (Simplified - no images)
  */
 add_action('wp_ajax_cw_cj_import_ajax', function() {
@@ -442,6 +500,26 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 continue; // Skip duplicates
             }
             
+            // Fetch details for description and images
+            $details = [];
+            if (!empty($product['id'])) {
+                $details = $cj->get_product_details($product['id'], true);
+            }
+
+            $description = $product['productDescribeEn'] ?? $details['description'] ?? $details['productDescribeEn'] ?? '';
+
+            $category_name = $product['threeCategoryName'] ?? $product['twoCategoryName'] ?? $product['oneCategoryName'] ?? '';
+            $category_ids = [];
+            if (!empty($category_name)) {
+                $term = term_exists($category_name, 'product_cat');
+                if (!$term) {
+                    $term = wp_insert_term($category_name, 'product_cat');
+                }
+                if (!is_wp_error($term)) {
+                    $category_ids[] = is_array($term) ? $term['term_id'] : $term;
+                }
+            }
+
             // Calculate price with markup
             $raw_price = $variant['salePrice'] ?? $variant['sellPrice'] ?? $product['nowPrice'] ?? $product['sellPrice'] ?? '10';
             if (is_string($raw_price)) {
@@ -457,7 +535,7 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                 'name' => sanitize_text_field($product['nameEn'] ?? 'Unnamed Product'),
                 'type' => 'simple',
                 'status' => 'publish',
-                'description' => sanitize_textarea_field($product['productDescribeEn'] ?? ''),
+                'description' => wp_kses_post($description),
                 'regular_price' => (string) round($your_price, 2),
                 'meta_data' => [
                     [
@@ -478,6 +556,9 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
             // Try to create product
             $wc_product = new WC_Product_Simple();
             $wc_product->set_props($product_data);
+            if (!empty($category_ids)) {
+                $wc_product->set_category_ids($category_ids);
+            }
             
             try {
                 $product_id = $wc_product->save();
@@ -487,6 +568,38 @@ add_action('wp_ajax_cw_cj_import_ajax', function() {
                     continue;
                 }
                 
+                // Download and attach images
+                $image_urls = [];
+                if (!empty($details['productImageSet']) && is_array($details['productImageSet'])) {
+                    $image_urls = $details['productImageSet'];
+                } elseif (!empty($details['productImages']) && is_array($details['productImages'])) {
+                    $image_urls = $details['productImages'];
+                } elseif (!empty($details['productImage']) && is_string($details['productImage'])) {
+                    $image_urls = [$details['productImage']];
+                } elseif (!empty($product['bigImage'])) {
+                    $image_urls = [$product['bigImage']];
+                }
+
+                if (!empty($image_urls)) {
+                    $featured_id = cw_cj_sideload_image($image_urls[0], $product_id, $product['nameEn'] ?? 'CJ Product');
+                    if (!is_wp_error($featured_id)) {
+                        set_post_thumbnail($product_id, $featured_id);
+                    } else {
+                        error_log('CJ Import: Image download failed - ' . $featured_id->get_error_message());
+                    }
+
+                    $gallery_ids = [];
+                    for ($i = 1; $i < count($image_urls); $i++) {
+                        $image_id = cw_cj_sideload_image($image_urls[$i], $product_id, $product['nameEn'] ?? 'CJ Product');
+                        if (!is_wp_error($image_id)) {
+                            $gallery_ids[] = $image_id;
+                        }
+                    }
+                    if (!empty($gallery_ids)) {
+                        update_post_meta($product_id, '_product_image_gallery', implode(',', $gallery_ids));
+                    }
+                }
+
                 $imported++;
                 
             } catch (Exception $e) {
