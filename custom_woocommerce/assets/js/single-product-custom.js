@@ -27,6 +27,57 @@ document.addEventListener('DOMContentLoaded', function () {
     const mainVideo = document.getElementById('csp-main-video');
     const mainDisplay = document.querySelector('.csp-main-display');
     const currentCounter = document.getElementById('csp-current');
+    const thumbnailsContainer = document.querySelector('.csp-thumbnails');
+    const gallerySection = document.querySelector('.csp-gallery-section');
+
+    function enforceMobileGalleryLayout() {
+        if (!gallerySection || !thumbnailsContainer || !mainDisplay) {
+            return;
+        }
+
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+        if (isMobile) {
+            gallerySection.style.display = 'grid';
+            gallerySection.style.gridTemplateColumns = '64px 1fr';
+            gallerySection.style.alignItems = 'start';
+            gallerySection.style.gap = '10px';
+
+            thumbnailsContainer.style.display = 'flex';
+            thumbnailsContainer.style.flexDirection = 'column';
+            thumbnailsContainer.style.width = '64px';
+            thumbnailsContainer.style.maxHeight = '360px';
+            thumbnailsContainer.style.overflowY = 'auto';
+            thumbnailsContainer.style.overflowX = 'hidden';
+
+            mainDisplay.style.width = '100%';
+            mainDisplay.style.maxWidth = 'none';
+            mainDisplay.style.minHeight = '320px';
+            mainDisplay.style.display = 'block';
+
+            document.querySelectorAll('.csp-thumb').forEach(thumb => {
+                thumb.style.borderRadius = '50%';
+                thumb.style.width = '60px';
+                thumb.style.height = '60px';
+            });
+
+            if (mainImage) {
+                mainImage.style.display = 'block';
+                mainImage.style.width = '100%';
+                mainImage.style.height = '100%';
+                mainImage.style.objectFit = 'contain';
+                mainImage.style.minHeight = '320px';
+            }
+
+            if (mainVideo) {
+                mainVideo.style.display = 'block';
+                mainVideo.style.width = '100%';
+                mainVideo.style.height = '100%';
+                mainVideo.style.objectFit = 'contain';
+                mainVideo.style.minHeight = '320px';
+            }
+        }
+    }
 
     thumbs.forEach(thumb => {
         thumb.addEventListener('click', function () {
@@ -56,6 +107,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    enforceMobileGalleryLayout();
+    window.addEventListener('resize', enforceMobileGalleryLayout);
 
     // ===== VARIETY/COLOR SWATCHES =====
     const varietySwatches = document.querySelectorAll('.csp-variety-swatch');
@@ -222,7 +276,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let touchStartX = 0;
     let touchEndX = 0;
 
-    const thumbnailsContainer = document.querySelector('.csp-thumbnails');
     if (thumbnailsContainer) {
         thumbnailsContainer.addEventListener('touchstart', function (e) {
             touchStartX = e.changedTouches[0].screenX;
