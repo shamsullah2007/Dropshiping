@@ -16,7 +16,6 @@ if (!defined('ABSPATH')) {
 /**
  * Display varieties on single product page
  */
-add_action('woocommerce_before_add_to_cart_form', 'cw_cj_display_product_varieties', 5);
 function cw_cj_display_product_varieties() {
     global $product;
     
