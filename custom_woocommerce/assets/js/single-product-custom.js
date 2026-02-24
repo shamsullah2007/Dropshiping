@@ -45,6 +45,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // ===== VARIETY/COLOR SWATCHES =====
     const varietySwatches = document.querySelectorAll('.csp-variety-swatch');
     let selectedVariety = null;
+    const priceDisplay = document.querySelector('.csp-price');
+    const selectedColorLabel = document.getElementById('csp-variety-selected');
+    const basePriceValue = getBasePrice();
 
     varietySwatches.forEach(swatch => {
         swatch.addEventListener('click', function () {
@@ -57,7 +60,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 price: parseFloat(this.dataset.varietyPrice) || 0
             };
 
-            console.log('Variety selected:', selectedVariety);
+            if (selectedColorLabel) {
+                selectedColorLabel.textContent = selectedVariety.name ? `(${selectedVariety.name})` : '';
+            }
+
+            updateUnitPrice();
             updateTotalPrice();
         });
     });
@@ -111,9 +118,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // ===== UPDATE TOTAL PRICE =====
     function updateTotalPrice() {
         const qty = parseInt(qtyInput.value) || 1;
-        const basePrice = getBasePrice();
         const varietyPrice = selectedVariety ? selectedVariety.price : 0;
-        const totalPrice = (basePrice + varietyPrice) * qty;
+        const totalPrice = (basePriceValue + varietyPrice) * qty;
 
         const totalDisplay = document.getElementById('csp-total-price');
         if (totalDisplay) {
@@ -135,6 +141,14 @@ document.addEventListener('DOMContentLoaded', function () {
             return parseFloat(match[0].replace(/[,]/g, ''));
         }
         return 0;
+    }
+
+    function updateUnitPrice() {
+        if (!priceDisplay) return;
+
+        const varietyPrice = selectedVariety ? selectedVariety.price : 0;
+        const unitPrice = basePriceValue + varietyPrice;
+        priceDisplay.textContent = formatPrice(unitPrice);
     }
 
     // ===== FORMAT PRICE =====
@@ -247,6 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ===== INITIALIZE =====
     console.log('CSP Initialization Complete');
+    updateUnitPrice();
     updateTotalPrice();
 
     // Log to verify elements are found
