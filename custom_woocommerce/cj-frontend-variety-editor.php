@@ -24,11 +24,51 @@ function cw_ajax_get_product_varieties_edit() {
     }
     
     $varieties = get_post_meta($product_id, '_cj_varieties', true) ?: [];
+    $delivery_charges = get_post_meta($product_id, '_cj_delivery_charges', true);
+    $delivery_eta = get_post_meta($product_id, '_cj_delivery_eta', true);
     
     wp_send_json_success([
         'product_id' => $product_id,
         'product_name' => $product->get_name(),
         'varieties' => $varieties,
+        'delivery_charges' => $delivery_charges,
+        'delivery_eta' => $delivery_eta,
+    ]);
+}
+
+// AJAX: Save delivery details
+add_action('wp_ajax_cw_save_delivery_details_frontend', 'cw_ajax_save_delivery_details_frontend');
+function cw_ajax_save_delivery_details_frontend() {
+    check_ajax_referer('cw_variety_editor_nonce', 'nonce');
+
+    if (!current_user_can('manage_woocommerce')) {
+        wp_send_json_error('Unauthorized');
+    }
+
+    $product_id = intval($_POST['product_id'] ?? 0);
+    if (!$product_id) {
+        wp_send_json_error('Invalid product ID');
+    }
+
+    $delivery_charges = sanitize_text_field($_POST['delivery_charges'] ?? '');
+    $delivery_eta = sanitize_text_field($_POST['delivery_eta'] ?? '');
+
+    if ($delivery_charges !== '') {
+        update_post_meta($product_id, '_cj_delivery_charges', $delivery_charges);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_charges');
+    }
+
+    if ($delivery_eta !== '') {
+        update_post_meta($product_id, '_cj_delivery_eta', $delivery_eta);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_eta');
+    }
+
+    wp_send_json_success([
+        'message' => 'Delivery details saved successfully',
+        'delivery_charges' => $delivery_charges,
+        'delivery_eta' => $delivery_eta,
     ]);
 }
 
@@ -148,6 +188,20 @@ function cw_render_variety_editor_modal() {
             </div>
             
             <div class="cw-variety-editor-body">
+                <div class="cw-delivery-details">
+                    <div class="cw-delivery-field">
+                        <label for="cwDeliveryCharges">Delivery Charges</label>
+                        <input type="text" id="cwDeliveryCharges" placeholder="e.g., $5.99 or Free">
+                    </div>
+                    <div class="cw-delivery-field">
+                        <label for="cwDeliveryEta">ETA</label>
+                        <input type="text" id="cwDeliveryEta" placeholder="e.g., 7-12 business days">
+                    </div>
+                    <button type="button" class="button button-secondary" id="cwSaveDeliveryDetails">
+                        Save Delivery Details
+                    </button>
+                </div>
+
                 <div id="cwVarietiesList" class="cw-varieties-list"></div>
                 
                 <button type="button" class="button button-primary" id="cwAddVarietyBtn">

@@ -110,6 +110,23 @@ get_header( 'shop' );
 					<?php echo wp_kses_post($product->get_price_html()); ?>
 				</div>
 
+				<?php
+				$delivery_charges = get_post_meta($product_id, '_cj_delivery_charges', true);
+				$delivery_eta = get_post_meta($product_id, '_cj_delivery_eta', true);
+				if ($delivery_charges || $delivery_eta) {
+					?>
+					<div class="csp-delivery-details">
+						<?php if ($delivery_charges) { ?>
+							<div class="csp-delivery-item"><strong>Delivery Charges:</strong> <?php echo esc_html($delivery_charges); ?></div>
+						<?php } ?>
+						<?php if ($delivery_eta) { ?>
+							<div class="csp-delivery-item"><strong>ETA:</strong> <?php echo esc_html($delivery_eta); ?></div>
+						<?php } ?>
+					</div>
+					<?php
+				}
+				?>
+
 				<!-- VARIETIES/COLOR SWATCHES -->
 				<?php
 				$varieties = get_post_meta($product_id, '_cj_varieties', true);

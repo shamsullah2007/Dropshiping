@@ -489,6 +489,12 @@ function loadProductForEdit(productId) {
                     
                     <label for="edit-product-price">Price *</label>
                     <input type="number" step="0.01" id="edit-product-price" name="product_price" value="${product.price}" required>
+
+                    <label for="edit-product-delivery-charges">Delivery Charges</label>
+                    <input type="text" id="edit-product-delivery-charges" name="cw_delivery_charges" value="${product.delivery_charges || ''}" placeholder="e.g., $5.99 or Free">
+
+                    <label for="edit-product-delivery-eta">ETA</label>
+                    <input type="text" id="edit-product-delivery-eta" name="cw_delivery_eta" value="${product.delivery_eta || ''}" placeholder="e.g., 7-12 business days">
                     
                     <label for="edit-product-sku">SKU</label>
                     <input type="text" id="edit-product-sku" name="product_sku" value="${product.sku}">

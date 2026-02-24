@@ -35,6 +35,8 @@ function cw_cj_register_varieties_metabox() {
 function cw_cj_render_varieties_metabox($post) {
     $product_id = $post->ID;
     $varieties = get_post_meta($product_id, '_cj_varieties', true);
+    $delivery_charges = get_post_meta($product_id, '_cj_delivery_charges', true);
+    $delivery_eta = get_post_meta($product_id, '_cj_delivery_eta', true);
     
     if (!is_array($varieties)) {
         $varieties = [];
@@ -58,6 +60,18 @@ function cw_cj_render_varieties_metabox($post) {
             </p>
         </div>
         
+        <!-- Delivery Details -->
+        <div style="margin-bottom: 20px; padding: 12px; background: #fff; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Delivery Charges:</label>
+                <input type="text" name="cw_cj_delivery_charges" value="<?php echo esc_attr($delivery_charges); ?>" placeholder="e.g., $5.99 or Free" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px;">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">ETA:</label>
+                <input type="text" name="cw_cj_delivery_eta" value="<?php echo esc_attr($delivery_eta); ?>" placeholder="e.g., 7-12 business days" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px;">
+            </div>
+        </div>
+
         <!-- Varieties Container -->
         <div id="cw-cj-varieties-list">
             <?php
@@ -259,6 +273,22 @@ function cw_cj_save_varieties($post_id) {
         return;
     }
     
+    // Save delivery details
+    $delivery_charges = isset($_POST['cw_cj_delivery_charges']) ? sanitize_text_field($_POST['cw_cj_delivery_charges']) : '';
+    $delivery_eta = isset($_POST['cw_cj_delivery_eta']) ? sanitize_text_field($_POST['cw_cj_delivery_eta']) : '';
+
+    if ($delivery_charges !== '') {
+        update_post_meta($post_id, '_cj_delivery_charges', $delivery_charges);
+    } else {
+        delete_post_meta($post_id, '_cj_delivery_charges');
+    }
+
+    if ($delivery_eta !== '') {
+        update_post_meta($post_id, '_cj_delivery_eta', $delivery_eta);
+    } else {
+        delete_post_meta($post_id, '_cj_delivery_eta');
+    }
+
     // Get all variety data
     $indices = isset($_POST['cw_cj_variety_index']) ? (array) $_POST['cw_cj_variety_index'] : [];
     $image_ids = isset($_POST['cw_cj_variety_image_id']) ? (array) $_POST['cw_cj_variety_image_id'] : [];

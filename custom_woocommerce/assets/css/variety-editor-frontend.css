@@ -93,6 +93,39 @@
     padding: 20px;
 }
 
+.cw-delivery-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+    padding: 12px;
+    margin-bottom: 16px;
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+}
+
+.cw-delivery-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cw-delivery-field label {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #666;
+    letter-spacing: 0.5px;
+}
+
+.cw-delivery-field input {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
 .cw-varieties-list {
     display: flex;
     flex-direction: column;

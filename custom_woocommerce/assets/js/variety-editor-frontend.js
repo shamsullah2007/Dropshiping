@@ -12,6 +12,9 @@
         addBtn: $('#cwAddVarietyBtn'),
         closeButtons: $('.cw-close-editor'),
         autoSaveNotice: $('.cw-auto-save-notice'),
+        deliveryCharges: $('#cwDeliveryCharges'),
+        deliveryEta: $('#cwDeliveryEta'),
+        saveDeliveryBtn: $('#cwSaveDeliveryDetails'),
     };
 
     let currentProductId = null;
@@ -42,6 +45,44 @@
         addVarietyRow();
     });
 
+    // Save delivery details
+    UI.saveDeliveryBtn.on('click', function () {
+        if (!currentProductId) {
+            showError('No product selected');
+            return;
+        }
+
+        const deliveryCharges = UI.deliveryCharges.val().trim();
+        const deliveryEta = UI.deliveryEta.val().trim();
+
+        $(this).prop('disabled', true).text('Saving...');
+
+        $.ajax({
+            url: cwVarietyEditor.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'cw_save_delivery_details_frontend',
+                product_id: currentProductId,
+                delivery_charges: deliveryCharges,
+                delivery_eta: deliveryEta,
+                nonce: cwVarietyEditor.nonce,
+            },
+            success: function (response) {
+                if (response.success) {
+                    showSuccess('Delivery details saved successfully!');
+                } else {
+                    showError(response.data || 'Failed to save delivery details');
+                }
+            },
+            error: function () {
+                showError('Error saving delivery details');
+            },
+            complete: function () {
+                UI.saveDeliveryBtn.prop('disabled', false).text('Save Delivery Details');
+            }
+        });
+    });
+
     /**
      * Load varieties for editing
      */
@@ -67,6 +108,13 @@
 
                     // Render varieties
                     renderVarieties(currentVarieties);
+
+                    if (UI.deliveryCharges.length) {
+                        UI.deliveryCharges.val(response.data.delivery_charges || '');
+                    }
+                    if (UI.deliveryEta.length) {
+                        UI.deliveryEta.val(response.data.delivery_eta || '');
+                    }
                 } else {
                     showError(response.data || 'Failed to load varieties');
                 }

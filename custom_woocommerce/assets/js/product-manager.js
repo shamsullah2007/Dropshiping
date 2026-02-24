@@ -5,6 +5,37 @@
 (function ($) {
     'use strict';
 
+    function injectDeliveryFields($form) {
+        if (!$form || !$form.length) {
+            return;
+        }
+
+        if ($form.find('input[name="cw_delivery_charges"]').length) {
+            return;
+        }
+
+        const isEdit = $form.attr('id') === 'edit-product-form';
+        const priceInput = isEdit ? $form.find('#edit-product-price') : $form.find('#cw-product-price');
+
+        if (!priceInput.length) {
+            return;
+        }
+
+        const fieldsHtml = `
+            <label for="${isEdit ? 'edit-product-delivery-charges' : 'cw-delivery-charges'}">Delivery Charges</label>
+            <input type="text" id="${isEdit ? 'edit-product-delivery-charges' : 'cw-delivery-charges'}" name="cw_delivery_charges" placeholder="e.g., $5.99 or Free">
+
+            <label for="${isEdit ? 'edit-product-delivery-eta' : 'cw-delivery-eta'}">ETA</label>
+            <input type="text" id="${isEdit ? 'edit-product-delivery-eta' : 'cw-delivery-eta'}" name="cw_delivery_eta" placeholder="e.g., 7-12 business days">
+        `;
+
+        $(fieldsHtml).insertAfter(priceInput);
+    }
+
+    function injectIntoVisibleForms() {
+        injectDeliveryFields($('.cw-add-product-form'));
+    }
+
     // Tab switching
     $('.pm-tab-btn').on('click', function () {
         const tabName = $(this).data('tab');
@@ -14,6 +45,24 @@
 
         $(this).addClass('active');
         $('#' + tabName).addClass('active');
+
+        if (tabName === 'add-single' || tabName === 'edit-product') {
+            injectIntoVisibleForms();
+        }
+    });
+
+    // Initial injection for Add Single Item tab
+    $(document).ready(function () {
+        injectIntoVisibleForms();
+
+        const editContainer = document.getElementById('editProductContainer');
+        if (editContainer) {
+            const observer = new MutationObserver(() => {
+                injectIntoVisibleForms();
+            });
+
+            observer.observe(editContainer, { childList: true, subtree: true });
+        }
     });
 
     // Delete product
