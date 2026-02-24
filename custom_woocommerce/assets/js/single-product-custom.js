@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function () {
             };
 
             if (selectedColorLabel) {
-                selectedColorLabel.textContent = selectedVariety.name ? `(${selectedVariety.name})` : '';
+                selectedColorLabel.textContent = selectedVariety.name || `Option ${parseInt(selectedVariety.index, 10) + 1}`;
             }
 
             updateUnitPrice();
@@ -261,6 +261,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ===== INITIALIZE =====
     console.log('CSP Initialization Complete');
+    const initialSwatch = document.querySelector('.csp-variety-swatch.active') || varietySwatches[0];
+    if (initialSwatch) {
+        selectedVariety = {
+            index: initialSwatch.dataset.varietyIndex,
+            name: initialSwatch.dataset.varietyName,
+            price: parseFloat(initialSwatch.dataset.varietyPrice) || 0
+        };
+
+        if (selectedColorLabel) {
+            selectedColorLabel.textContent = selectedVariety.name || `Option ${parseInt(selectedVariety.index, 10) + 1}`;
+        }
+    }
+
     updateUnitPrice();
     updateTotalPrice();
 
