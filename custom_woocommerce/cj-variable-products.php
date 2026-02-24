@@ -269,8 +269,20 @@ function cw_cj_get_variant_image_url($variant) {
  * @param int $category_id Optional category ID
  * @return int|WP_Error Product ID or error
  */
+/**
+ * Create a SIMPLE product (basic info only - NO varieties auto-imported)
+ * 
+ * Admin will manually add varieties through the product edit form
+ * This imports: Title, Description, Images, Base Price
+ * 
+ * @param array $product CJ product data
+ * @param array $variants Variant data (used to get images and set base price)
+ * @param float $markup Markup rate
+ * @param int $category_id Category ID
+ * @return int|WP_Error Product ID or error
+ */
 function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $category_id = 0) {
-    if (!class_exists('WC_Product_Variable')) {
+    if (!class_exists('WC_Product')) {
         return new WP_Error('cj_no_wc', 'WooCommerce is not available.');
     }
 
@@ -278,16 +290,12 @@ function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $cate
         return new WP_Error('cj_invalid_data', 'Missing product data.');
     }
 
-    if (empty($variants)) {
-        error_log('[CJ Import] No variants for product, creating simple product as fallback');
-        return cw_cj_create_simple_product($product, $markup, $category_id);
-    }
-
     $product_name = $product['nameEn'] ?? $product['productNameEn'] ?? $product['productName'] ?? 'CJ Product';
     $description = $product['productDescribeEn'] ?? $product['description'] ?? '';
     $cj_product_id = $product['id'] ?? $product['pid'] ?? '';
 
-    $wc_product = new WC_Product_Variable();
+    // ✅ Create SIMPLE product - NOT variable
+    $wc_product = new WC_Product();
     $wc_product->set_name($product_name);
     $wc_product->set_description($description);
     $wc_product->set_status('publish');
@@ -303,6 +311,30 @@ function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $cate
         $wc_product->set_sku($main_sku);
     }
 
+    // Find lowest price from variants to set as base price
+    $lowest_price = PHP_INT_MAX;
+    if (!empty($variants)) {
+        foreach ($variants as $variant) {
+            $base_price = $variant['sellPrice'] ?? $variant['variantSellPrice'] ?? $variant['price'] ?? 0;
+            if (is_numeric($base_price) && $base_price > 0) {
+                $price = round($base_price * (1 + (float) $markup), 2);
+                if ($price < $lowest_price) {
+                    $lowest_price = $price;
+                }
+            }
+        }
+    }
+
+    if ($lowest_price < PHP_INT_MAX) {
+        $wc_product->set_regular_price((string) $lowest_price);
+    } else {
+        $wc_product->set_regular_price('29.99'); // Fallback
+    }
+
+    // Stock management for dropshipping - don't manage inventory, always in stock
+    $wc_product->set_manage_stock(false);
+    $wc_product->set_stock_status('instock');
+
     $product_id = $wc_product->save();
 
     if (!$product_id) {
@@ -313,158 +345,42 @@ function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $cate
         update_post_meta($product_id, '_cj_product_id', $cj_product_id);
     }
 
-    // Store original cost for reference
-    if (!empty($variants) && isset($variants[0]['sellPrice'])) {
-        update_post_meta($product_id, '_cj_base_cost', $variants[0]['sellPrice']);
-    }
-
-    // Build attributes for variations with improved detection
-    $all_attributes = [];
-    $variant_attributes = [];
-    $created_variations = 0;
-
-    foreach ($variants as $index => $variant) {
-        $attrs = cw_cj_parse_variant_attributes($variant);
-
-        if (empty($attrs)) {
-            $variant_name = $variant['variantName'] ?? $variant['variantKey'] ?? '';
-            if (!empty($variant_name)) {
-                $attrs = cw_cj_smart_split_variant_name($variant_name);
-            }
-            
-            if (empty($attrs)) {
-                $fallback = $variant_name ?: $variant['vid'] ?? 'Default';
-                $attrs = ['Option' => $fallback];
-            }
-        }
-
-        $variant_attributes[$index] = $attrs;
-
-        foreach ($attrs as $name => $value) {
-            if (!isset($all_attributes[$name])) {
-                $all_attributes[$name] = [];
-            }
-            if (!in_array($value, $all_attributes[$name])) {
-                $all_attributes[$name][] = $value;
-            }
-        }
-    }
-
-    // Create product attributes
-    $product_attributes = [];
-    if (!empty($all_attributes)) {
-        foreach ($all_attributes as $name => $values) {
-            $attribute = new WC_Product_Attribute();
-            $attribute->set_name($name);
-            $attribute->set_options(array_values(array_unique(array_filter($values))));
-            $attribute->set_visible(true);
-            $attribute->set_variation(true);
-            $product_attributes[] = $attribute;
-            
-            error_log('[CJ Import] Attribute "' . $name . '" created with ' . count(array_unique($values)) . ' values: ' . implode(', ', array_unique($values)));
-        }
-
-        $wc_product->set_attributes($product_attributes);
-        $wc_product->save();
-    }
-
-    // Find lowest price for parent product display
-    $lowest_price = PHP_INT_MAX;
-    foreach ($variants as $variant) {
-        $base_price = $variant['sellPrice'] ?? $variant['variantSellPrice'] ?? $variant['price'] ?? 0;
-        if (is_numeric($base_price) && $base_price > 0) {
-            $price = round($base_price * (1 + (float) $markup), 2);
-            if ($price < $lowest_price) {
-                $lowest_price = $price;
-            }
-        }
-    }
-
-    if ($lowest_price < PHP_INT_MAX) {
-        $wc_product->set_regular_price((string) $lowest_price);
-    }
-
-    // Create variations with better error handling
-    foreach ($variants as $index => $variant) {
-        try {
-            $variation = new WC_Product_Variation();
-            $variation->set_parent_id($product_id);
-
-            $base_price = $variant['sellPrice'] ?? $variant['variantSellPrice'] ?? $variant['price'] ?? $variant['originalPrice'] ?? 0;
-            $base_price = is_numeric($base_price) ? (float) $base_price : 0.0;
-            $price = $base_price > 0 ? round($base_price * (1 + (float) $markup), 2) : 0;
-
-            if ($price > 0) {
-                $variation->set_regular_price((string) $price);
-            } else {
-                error_log('[CJ Import] Warning: No price for variant ' . ($variant['vid'] ?? 'unknown'));
-            }
-
-            $variation_attrs = [];
-            $attrs = $variant_attributes[$index] ?? [];
-            foreach ($attrs as $name => $value) {
-                $slug = cw_cj_get_attribute_slug($name);
-                $variation_attrs['attribute_' . $slug] = $value;
-            }
-
-            $variation->set_attributes($variation_attrs);
-
-            $sku = $variant['variantSku'] ?? $variant['sku'] ?? $variant['SKU'] ?? '';
-            if (!empty($sku)) {
-                $variation->set_sku($sku);
-            }
-
-            // Stock management
-            $stock_qty = $variant['quantity'] ?? $variant['stock'] ?? $variant['inventory'] ?? 0;
-            if (is_numeric($stock_qty)) {
-                $variation->set_stock_quantity(absint($stock_qty));
-                $variation->set_manage_stock(true);
-                if ($stock_qty > 0) {
-                    $variation->set_stock_status('instock');
-                } else {
-                    $variation->set_stock_status('outofstock');
-                }
-            } else {
-                $variation->set_manage_stock(false);
-                $variation->set_stock_status('instock');
-            }
-
-            if (!empty($cj_product_id)) {
-                $variation->update_meta_data('_cj_product_id', $cj_product_id);
-            }
-            $cj_variant_id = $variant['vid'] ?? $variant['variantId'] ?? $variant['id'] ?? '';
-            if (!empty($cj_variant_id)) {
-                $variation->update_meta_data('_cj_variant_id', $cj_variant_id);
-            }
-
+    // ✅ Import images from variants (show in product gallery)
+    // Upload images but don't create variations/varieties
+    if (!empty($variants) && function_exists('cw_cj_sideload_image')) {
+        $images = [];
+        $gallery_ids = [];
+        foreach ($variants as $variant) {
             $variant_image_url = cw_cj_get_variant_image_url($variant);
-            if (!empty($variant_image_url)) {
-                $variation->update_meta_data('_cj_variant_image_url', $variant_image_url);
-
-                if (function_exists('cw_cj_sideload_image')) {
-                    $variant_img_id = cw_cj_sideload_image($variant_image_url, $product_id, $product_name . ' - ' . ($variant['variantName'] ?? 'Variant'), true);
-                    if (!is_wp_error($variant_img_id)) {
-                        $variation->set_image_id($variant_img_id);
+            if (!empty($variant_image_url) && !in_array($variant_image_url, $images)) {
+                $images[] = $variant_image_url;
+                
+                // Sideload image
+                $img_id = cw_cj_sideload_image($variant_image_url, $product_id, $product_name . ' - ' . ($variant['variantName'] ?? 'Image'), true);
+                if (!is_wp_error($img_id)) {
+                    if (!$wc_product->get_image_id()) {
+                        $wc_product->set_image_id($img_id); // Set first as main
+                    } else {
+                        $gallery_ids[] = $img_id; // Collect gallery images
                     }
                 }
             }
-
-            $variation_id = $variation->save();
-            if ($variation_id) {
-                $created_variations++;
-            }
-        } catch (Exception $e) {
-            error_log('[CJ Import] Error creating variation: ' . $e->getMessage());
-            continue;
         }
+        
+        // Set gallery images if collected
+        if (!empty($gallery_ids)) {
+            $wc_product->set_gallery_image_ids($gallery_ids);
+        }
+        $wc_product->save();
     }
 
-    if ($created_variations === 0) {
-        wp_delete_post($product_id, true);
-        return new WP_Error('cj_no_variations', 'Failed to create any variations for product');
+    // Store reference to original CJ variants (for tracking only)
+    if (!empty($variants)) {
+        update_post_meta($product_id, '_cj_base_cost', $variants[0]['sellPrice'] ?? 0);
+        error_log('[CJ Import] Product ' . $product_id . ' created with ' . count($variants) . ' variant images imported');
     }
 
-    error_log('[CJ Import] Successfully created variable product ' . $product_id . ' with ' . $created_variations . ' variations');
+    error_log('[CJ Import] Successfully created simple product ' . $product_id . ' - ' . $product_name . ' (Admin will add varieties manually)');
     return $product_id;
 }
 
@@ -494,6 +410,10 @@ function cw_cj_create_simple_product($product, $markup = 0.5, $category_id = 0) 
     $base_price = $product['sellPrice'] ?? $product['price'] ?? 10;
     $price = round($base_price * (1 + (float) $markup), 2);
     $wc_product->set_regular_price((string) $price);
+
+    // Stock management for dropshipping - don't manage inventory, always in stock
+    $wc_product->set_manage_stock(false);
+    $wc_product->set_stock_status('instock');
 
     $product_id = $wc_product->save();
     if ($product_id && !empty($cj_product_id)) {

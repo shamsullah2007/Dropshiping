@@ -6,6 +6,11 @@ if (!defined('ABSPATH')) {
 
 // ==================== CJ DROPSHIPPING INTEGRATION ====================
 require_once dirname(__FILE__) . '/cj-integration-hooks.php';
+require_once dirname(__FILE__) . '/cj-customer-tracking.php';
+require_once dirname(__FILE__) . '/cj-product-varieties-admin.php';
+require_once dirname(__FILE__) . '/cj-product-varieties-frontend.php';
+require_once dirname(__FILE__) . '/cj-product-video-autoplay.php';
+require_once dirname(__FILE__) . '/cj-frontend-variety-editor.php';
 
 // ==================== NGROK URL FIXES ====================
 
@@ -360,6 +365,7 @@ function custom_woocommerce_enqueue_assets()
 {
     wp_enqueue_style('custom-woocommerce-style', get_stylesheet_uri(), [], '1.1.1');
     wp_enqueue_style('custom-woocommerce-cj-single-product', get_template_directory_uri() . '/assets/css/cj-single-product.css', [], '1.1.1');
+    wp_enqueue_style('custom-woocommerce-cj-tracking', get_template_directory_uri() . '/assets/css/cj-customer-tracking.css', [], '1.0.0');
     wp_enqueue_script(
         'custom-woocommerce-theme',
         get_template_directory_uri() . '/assets/js/theme.js',
@@ -1034,6 +1040,30 @@ function custom_woocommerce_add_product_form_shortcode()
                         }
                     }
                     
+                    // Handle varieties
+                    if (isset($_POST['cw_variety_count']) && (int)$_POST['cw_variety_count'] > 0) {
+                        $varieties = [];
+                        $variety_count = (int)$_POST['cw_variety_count'];
+                        
+                        for ($i = 0; $i < $variety_count; $i++) {
+                            $color_name = isset($_POST['cw_variety_color_' . $i]) ? sanitize_text_field($_POST['cw_variety_color_' . $i]) : '';
+                            $price = isset($_POST['cw_variety_price_' . $i]) ? floatval($_POST['cw_variety_price_' . $i]) : 0;
+                            $image_id = isset($_POST['cw_variety_image_id_' . $i]) ? intval($_POST['cw_variety_image_id_' . $i]) : 0;
+                            
+                            if (!empty($color_name)) {
+                                $varieties[] = [
+                                    'color_name' => $color_name,
+                                    'price' => $price,
+                                    'image_id' => $image_id,
+                                ];
+                            }
+                        }
+                        
+                        if (!empty($varieties)) {
+                            update_post_meta($product_id, '_cj_varieties', $varieties);
+                        }
+                    }
+                    
                     // Save again with all updates
                     $product->save();
 
@@ -1115,10 +1145,60 @@ function custom_woocommerce_add_product_form_shortcode()
         <label for="cw-product-description"><?php esc_html_e('Description', 'custom-woocommerce'); ?></label>
         <textarea id="cw-product-description" name="cw_product_description" rows="6"></textarea>
 
-        <button type="submit" class="button button-accent">
+        <!-- Varieties Section -->
+        <div class="cw-varieties-section" style="margin-top: 30px; border-top: 2px solid #e0e0e0; padding-top: 20px;">
+            <h3 style="margin: 0 0 15px 0; color: #333;">
+                <?php esc_html_e('Product Varieties (Optional)', 'custom-woocommerce'); ?>
+            </h3>
+            <p style="color: #666; margin: 0 0 20px 0; font-size: 0.9rem;">
+                <?php esc_html_e('Add different options for your product (colors, sizes, etc.)', 'custom-woocommerce'); ?>
+            </p>
+            
+            <div id="cw-varieties-container" style="display: flex; flex-direction: column; gap: 15px;">
+                <!-- Variety rows will be added here by JavaScript -->
+            </div>
+            
+            <button type="button" id="cw-add-variety-btn" class="button button-secondary" style="margin-top: 15px;">
+                <?php esc_html_e('+ Add Variety', 'custom-woocommerce'); ?>
+            </button>
+            
+            <input type="hidden" id="cw-variety-count" name="cw_variety_count" value="0">
+        </div>
+
+        <button type="submit" class="button button-accent" style="margin-top: 30px;">
             <?php esc_html_e('Create Product', 'custom-woocommerce'); ?>
         </button>
     </form>
+
+    <style>
+    .cw-varieties-section {
+        background: #fafafa;
+        padding: 20px;
+        border-radius: 6px;
+    }
+    
+    .cw-variety-row {
+        animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .cw-variety-row > div {
+            grid-template-columns: 1fr !important;
+        }
+    }
+    </style>
+
     <?php
     return ob_get_clean();
 }
@@ -1278,6 +1358,47 @@ function custom_woocommerce_get_product_for_edit()
     }
 
     $categories = wp_get_post_terms($product_id, 'product_cat', ['fields' => 'names']);
+    $varieties_data = get_post_meta($product_id, '_cj_varieties', true);
+    $gallery_ids = $product->get_gallery_image_ids();
+    $video_ids = get_post_meta($product_id, '_product_video_ids', true);
+    
+    $varieties = [];
+    if (!empty($varieties_data) && is_array($varieties_data)) {
+        foreach ($varieties_data as $variety) {
+            $varieties[] = [
+                'color_name' => $variety['color_name'] ?? '',
+                'price' => $variety['price'] ?? 0,
+                'image_id' => $variety['image_id'] ?? 0,
+                'image_url' => !empty($variety['image_id']) ? wp_get_attachment_image_url($variety['image_id'], 'medium') : ''
+            ];
+        }
+    }
+    
+    $gallery_images = [];
+    if (!empty($gallery_ids) && is_array($gallery_ids)) {
+        foreach ($gallery_ids as $image_id) {
+            $gallery_images[] = [
+                'id' => $image_id,
+                'url' => wp_get_attachment_image_url($image_id, 'medium'),
+                'thumb' => wp_get_attachment_image_url($image_id, 'thumbnail')
+            ];
+        }
+    }
+    
+    $videos = [];
+    if (!empty($video_ids) && is_array($video_ids)) {
+        foreach ($video_ids as $video_id) {
+            $video_url = wp_get_attachment_url($video_id);
+            $video_title = get_the_title($video_id);
+            if ($video_url) {
+                $videos[] = [
+                    'id' => $video_id,
+                    'url' => $video_url,
+                    'title' => $video_title
+                ];
+            }
+        }
+    }
     
     wp_send_json_success([
         'id' => $product->get_id(),
@@ -1286,7 +1407,10 @@ function custom_woocommerce_get_product_for_edit()
         'sku' => $product->get_sku(),
         'description' => $product->get_description(),
         'category' => !empty($categories) ? $categories[0] : '',
-        'image' => wp_get_attachment_image_url($product->get_image_id(), 'medium')
+        'image' => wp_get_attachment_image_url($product->get_image_id(), 'medium'),
+        'varieties' => $varieties,
+        'gallery_images' => $gallery_images,
+        'videos' => $videos
     ]);
 }
 add_action('wp_ajax_cw_get_product_for_edit', 'custom_woocommerce_get_product_for_edit');
@@ -1360,6 +1484,126 @@ function custom_woocommerce_update_product()
         if (!is_wp_error($attachment_id)) {
             set_post_thumbnail($product_id, $attachment_id);
         }
+    }
+
+    // Handle gallery images upload
+    if (!empty($_FILES['cw_product_gallery']['name'][0])) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        $gallery_ids = [];
+        $files = $_FILES['cw_product_gallery'];
+        
+        foreach ($files['name'] as $key => $value) {
+            if ($files['name'][$key]) {
+                $file = [
+                    'name'     => $files['name'][$key],
+                    'type'     => $files['type'][$key],
+                    'tmp_name' => $files['tmp_name'][$key],
+                    'error'    => $files['error'][$key],
+                    'size'     => $files['size'][$key]
+                ];
+                
+                $_FILES = ['upload_file' => $file];
+                
+                $attachment_id = media_handle_upload('upload_file', $product_id);
+                
+                if (!is_wp_error($attachment_id)) {
+                    $gallery_ids[] = $attachment_id;
+                }
+            }
+        }
+        
+        if (!empty($gallery_ids)) {
+            $product->set_gallery_image_ids($gallery_ids);
+            $product->save();
+        }
+    }
+
+    // Handle existing gallery images
+    if (isset($_POST['cw_product_gallery_existing']) && is_array($_POST['cw_product_gallery_existing'])) {
+        $existing_ids = array_map('intval', $_POST['cw_product_gallery_existing']);
+        if (!empty($existing_ids)) {
+            $product->set_gallery_image_ids($existing_ids);
+            $product->save();
+        }
+    }
+
+    // Handle video uploads
+    if (!empty($_FILES['cw_product_videos']['name'][0])) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        $video_ids = get_post_meta($product_id, '_product_video_ids', true);
+        if (!is_array($video_ids)) {
+            $video_ids = [];
+        }
+
+        $files = $_FILES['cw_product_videos'];
+        
+        foreach ($files['name'] as $key => $value) {
+            if ($files['name'][$key]) {
+                $file = [
+                    'name'     => $files['name'][$key],
+                    'type'     => $files['type'][$key],
+                    'tmp_name' => $files['tmp_name'][$key],
+                    'error'    => $files['error'][$key],
+                    'size'     => $files['size'][$key]
+                ];
+                
+                $_FILES = ['upload_file' => $file];
+                
+                $video_attachment_id = media_handle_upload('upload_file', $product_id);
+                
+                if (!is_wp_error($video_attachment_id)) {
+                    $video_ids[] = $video_attachment_id;
+                }
+            }
+        }
+        
+        if (!empty($video_ids)) {
+            update_post_meta($product_id, '_product_video_ids', $video_ids);
+        }
+    }
+
+    // Handle existing videos
+    if (isset($_POST['cw_product_videos_existing']) && is_array($_POST['cw_product_videos_existing'])) {
+        $existing_video_ids = array_map('intval', $_POST['cw_product_videos_existing']);
+        if (!empty($existing_video_ids)) {
+            update_post_meta($product_id, '_product_video_ids', $existing_video_ids);
+        } else {
+            delete_post_meta($product_id, '_product_video_ids');
+        }
+    }
+
+    // Handle varieties
+    if (isset($_POST['cw_variety_count']) && (int)$_POST['cw_variety_count'] > 0) {
+        $varieties = [];
+        $variety_count = (int)$_POST['cw_variety_count'];
+        
+        for ($i = 0; $i < $variety_count; $i++) {
+            $color_name = isset($_POST['cw_variety_color_' . $i]) ? sanitize_text_field($_POST['cw_variety_color_' . $i]) : '';
+            $price = isset($_POST['cw_variety_price_' . $i]) ? floatval($_POST['cw_variety_price_' . $i]) : 0;
+            $image_id = isset($_POST['cw_variety_image_id_' . $i]) ? intval($_POST['cw_variety_image_id_' . $i]) : 0;
+            
+            if (!empty($color_name)) {
+                $varieties[] = [
+                    'color_name' => $color_name,
+                    'price' => $price,
+                    'image_id' => $image_id,
+                ];
+            }
+        }
+        
+        if (!empty($varieties)) {
+            update_post_meta($product_id, '_cj_varieties', $varieties);
+        } else {
+            delete_post_meta($product_id, '_cj_varieties');
+        }
+    } else {
+        delete_post_meta($product_id, '_cj_varieties');
     }
 
     wp_send_json_success(['message' => 'Product updated successfully.']);

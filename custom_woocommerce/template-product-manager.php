@@ -8,6 +8,13 @@ if (!is_user_logged_in() || !current_user_can('manage_woocommerce')) {
     exit;
 }
 
+// Enqueue scripts and styles
+wp_enqueue_script('cw-product-manager', get_template_directory_uri() . '/assets/js/product-manager.js', ['jquery'], time(), true);
+wp_enqueue_script('cw-variety-form', get_template_directory_uri() . '/assets/js/variety-form.js', ['jquery', 'media'], time(), true);
+wp_enqueue_style('cw-product-manager', get_template_directory_uri() . '/assets/css/product-manager.css', [], time());
+wp_enqueue_style('cw-variety-form', get_template_directory_uri() . '/assets/css/variety-form.css', [], time());
+wp_enqueue_media();
+
 get_header();
 ?>
 

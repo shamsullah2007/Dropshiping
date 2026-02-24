@@ -310,15 +310,14 @@ function cw_cj_process_order_sync($order_id) {
 }
 
 /**
- * Trigger CJ order processing when WooCommerce order reaches processing status
+ * DISABLED: Automatic CJ order creation
+ * Changed to MANUAL order creation - Admin enters CJ Order ID in order details
+ * 
+ * Automatic hooks commented out - use manual entry system in admin
+ * See: cw_cj_render_manual_order_id_form() below
  */
-add_action('woocommerce_order_status_processing', 'cw_cj_process_order_sync', 10, 1);
-
-/**
- * Also trigger on payment_complete for payment gateway compatibility
- * This catches orders that go directly to processing via payment gateway
- */
-add_action('woocommerce_payment_complete', 'cw_cj_process_order_sync', 10, 1);
+// add_action('woocommerce_order_status_processing', 'cw_cj_process_order_sync', 10, 1);
+// add_action('woocommerce_payment_complete', 'cw_cj_process_order_sync', 10, 1);
 
 /**
  * Manual CJ order sync action for admin
@@ -329,84 +328,143 @@ add_action('cw_cj_manual_sync_order', 'cw_cj_process_order_sync', 10, 1);
 // ==================== ADMIN TOOLS ====================
 
 /**
- * Add manual sync button to WooCommerce order page
+ * Display manual CJ Order ID entry form on order page
+ * Admin manually enters CJ Order ID after creating order in CJ Dropshipping
  */
-add_action('woocommerce_order_item_add_action_buttons', function() {
+add_action('woocommerce_order_item_add_action_buttons', 'cw_cj_render_manual_order_id_form', 10);
+function cw_cj_render_manual_order_id_form() {
     $order = wc_get_order(get_the_ID());
     
     if (!$order) {
         return;
     }
     
-    // Only show if order is in processing and has no CJ order ID
-    if ($order->get_status() !== 'processing') {
-        return;
-    }
-    
-    if (CJ_Dropshipping::get_cj_order_id($order->get_id())) {
-        // Already synced
-        echo '<div class="notice notice-success"><p>✓ Order already synced to CJ (ID: ' . CJ_Dropshipping::get_cj_order_id($order->get_id()) . ')</p></div>';
-        return;
-    }
-    
-    // Show button to manually sync
-    echo '<button type="button" class="button button-primary" id="cw-cj-sync-btn" name="cw_cj_sync">Sync to CJ Dropshipping</button>';
-    echo '<span id="cw-cj-sync-spinner" class="spinner" style="display: none; float: none; margin: 5px 10px;"></span>';
-    
+    $existing_cj_id = CJ_Dropshipping::get_cj_order_id($order->get_id());
     ?>
+    <div id="cw-cj-order-id-section" style="margin-top: 15px; padding: 15px; background: #f0f7ff; border-left: 4px solid #0073aa; border-radius: 3px;">
+        <h4 style="margin-top: 0;">📦 CJ Dropshipping Order</h4>
+        
+        <?php if ($existing_cj_id): ?>
+            <div class="notice notice-success" style="margin: 10px 0;">
+                <p><strong>✓ CJ Order ID:</strong> <code><?php echo esc_html($existing_cj_id); ?></code></p>
+                <p style="margin: 5px 0; font-size: 12px; color: #666;">
+                    <a href="#" id="cw-cj-change-id-btn" style="color: #0073aa; text-decoration: none;">Change ID</a>
+                </p>
+            </div>
+        <?php else: ?>
+            <p style="margin: 10px 0; color: #666;">
+                <strong>Steps:</strong><br>
+                1. Go to <a href="https://www.cjdropshipping.com" target="_blank">CJ Dropshipping</a><br>
+                2. Create an order manually with this order's products<br>
+                3. Copy the CJ Order ID and paste it below<br>
+                4. Save and tracking will automatically update
+            </p>
+        <?php endif; ?>
+        
+        <form id="cw-cj-order-id-form" method="post" style="margin-top: 10px;">
+            <?php wp_nonce_field('cw_cj_manual_order_id', 'cw_cj_nonce'); ?>
+            
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" 
+                       id="cw-cj-order-id-input" 
+                       name="cw_cj_order_id" 
+                       placeholder="Enter CJ Order ID (e.g., 123456789)" 
+                       value="<?php echo esc_attr($existing_cj_id ? $existing_cj_id : ''); ?>"
+                       style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 3px;">
+                <button type="submit" id="cw-cj-save-id-btn" class="button button-primary" style="white-space: nowrap;">
+                    <?php echo $existing_cj_id ? 'Update ID' : 'Save ID'; ?>
+                </button>
+                <span id="cw-cj-spinner" class="spinner" style="display: none; float: none; margin: 0;"></span>
+            </div>
+            
+            <div id="cw-cj-message" style="margin-top: 10px; display: none;"></div>
+        </form>
+    </div>
+    
     <script>
     jQuery(document).ready(function($) {
-        $('#cw-cj-sync-btn').on('click', function(e) {
+        // Show input field when clicking "Change ID"
+        $('#cw-cj-change-id-btn').on('click', function(e) {
             e.preventDefault();
-            var $btn = $(this);
-            var $spinner = $('#cw-cj-sync-spinner');
+            $('#cw-cj-order-id-input').focus().select();
+        });
+        
+        // Handle form submission
+        $('#cw-cj-order-id-form').on('submit', function(e) {
+            e.preventDefault();
+            
+            var cj_order_id = $('#cw-cj-order-id-input').val().trim();
+            var $spinner = $('#cw-cj-spinner');
+            var $message = $('#cw-cj-message');
+            var $btn = $('#cw-cj-save-id-btn');
+            
+            if (!cj_order_id) {
+                $message.html('<p style="color: #d32f2f;">⚠️ Please enter a CJ Order ID</p>').show();
+                return;
+            }
             
             $btn.prop('disabled', true);
             $spinner.show();
+            $message.hide();
             
             $.ajax({
                 url: ajaxurl,
                 type: 'POST',
                 data: {
-                    action: 'cw_cj_sync_order',
+                    action: 'cw_cj_save_manual_order_id',
                     order_id: <?php echo get_the_ID(); ?>,
-                    nonce: '<?php echo wp_create_nonce("cw_cj_sync_nonce"); ?>'
+                    cj_order_id: cj_order_id,
+                    nonce: '<?php echo wp_create_nonce("cw_cj_manual_order_id"); ?>'
                 },
                 success: function(response) {
                     $spinner.hide();
+                    $btn.prop('disabled', false);
+                    
                     if (response.success) {
-                        alert('✓ Order synced successfully to CJ!\nCJ Order ID: ' + response.data.cj_order_id);
-                        location.reload();
+                        $message.html('<p style="color: #2e7d32;"><strong>✓ Success!</strong> CJ Order ID saved. Tracking will update automatically.</p>').show();
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1500);
                     } else {
-                        alert('✗ Sync failed: ' + (response.data.message || 'Unknown error'));
+                        $message.html('<p style="color: #d32f2f;"><strong>✗ Error:</strong> ' + (response.data.message || 'Unknown error') + '</p>').show();
                     }
                 },
                 error: function() {
                     $spinner.hide();
                     $btn.prop('disabled', false);
-                    alert('✗ AJAX request failed');
+                    $message.html('<p style="color: #d32f2f;">✗ Request failed. Try again.</p>').show();
                 }
             });
         });
     });
     </script>
     <?php
-}, 10);
+}
 
 /**
  * AJAX handler for manual order sync
  */
-add_action('wp_ajax_cw_cj_sync_order', function() {
-    check_ajax_referer('cw_cj_sync_nonce', 'nonce');
+/**
+ * AJAX handler to save manually entered CJ Order ID
+ * Admin manually creates order in CJ, then enters the CJ Order ID here
+ * Once saved, tracking updates work automatically
+ */
+add_action('wp_ajax_cw_cj_save_manual_order_id', function() {
+    check_ajax_referer('cw_cj_manual_order_id', 'nonce');
     
     if (!current_user_can('manage_woocommerce_orders')) {
         wp_send_json_error(['message' => 'Unauthorized']);
     }
     
     $order_id = intval($_POST['order_id'] ?? 0);
+    $cj_order_id = sanitize_text_field($_POST['cj_order_id'] ?? '');
     
     if (!$order_id) {
         wp_send_json_error(['message' => 'Invalid order ID']);
+    }
+    
+    if (!$cj_order_id) {
+        wp_send_json_error(['message' => 'Please enter a CJ Order ID']);
     }
     
     $order = wc_get_order($order_id);
@@ -414,31 +472,25 @@ add_action('wp_ajax_cw_cj_sync_order', function() {
         wp_send_json_error(['message' => 'Order not found']);
     }
     
-    // Check if already synced
-    $existing_cj_id = CJ_Dropshipping::get_cj_order_id($order_id);
-    if ($existing_cj_id) {
-        wp_send_json_error(['message' => 'Order already synced to CJ (ID: ' . $existing_cj_id . ')']);
-    }
+    // Save the CJ Order ID mapping
+    CJ_Dropshipping::map_woo_to_cj_order($order_id, $cj_order_id);
     
-    // Check CJ credentials
-    if (!CJ_Dropshipping::has_credentials()) {
-        wp_send_json_error(['message' => 'CJ credentials not configured']);
-    }
+    // Add order note
+    $order->add_order_note(sprintf(
+        'CJ Dropshipping Order ID manually linked: %s',
+        $cj_order_id
+    ));
     
-    // Perform the sync
-    cw_cj_process_order_sync($order_id);
+    error_log(sprintf(
+        'CJ Manual Order ID: WC Order %d mapped to CJ Order %s by admin',
+        $order_id,
+        $cj_order_id
+    ));
     
-    // Check result
-    $cj_order_id = CJ_Dropshipping::get_cj_order_id($order_id);
-    
-    if ($cj_order_id) {
-        wp_send_json_success([
-            'message' => 'Order synced successfully',
-            'cj_order_id' => $cj_order_id
-        ]);
-    } else {
-        wp_send_json_error(['message' => 'Sync completed but CJ order not found. Check debug log for details.']);
-    }
+    wp_send_json_success([
+        'message' => 'CJ Order ID saved successfully',
+        'cj_order_id' => $cj_order_id
+    ]);
 });
 
 // ==================== PRODUCT IMPORT UTILITIES ====================

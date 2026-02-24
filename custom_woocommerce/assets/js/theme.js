@@ -415,13 +415,75 @@ function loadProductForEdit(productId) {
         .then(data => {
             if (data.success) {
                 const product = data.data;
+                const varieties = product.varieties || [];
+                const galleryImages = product.gallery_images || [];
+                const videos = product.videos || [];
+
+                let varietiesHtml = '';
+                varieties.forEach((variety, index) => {
+                    varietiesHtml += `
+                        <div class="cw-variety-row" data-index="${index}" style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px;">
+                            <div style="display: grid; grid-template-columns: 100px 1fr 150px auto; gap: 15px; align-items: start;">
+                                <div>
+                                    <label style="display: block; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 8px;">Image</label>
+                                    <div class="variety-image-preview" style="width: 100px; height: 100px; border: 2px dashed #ddd; border-radius: 6px; background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; position: relative;">
+                                        <img src="${variety.image_url}" alt="Variety Image" style="display: ${variety.image_url ? 'block' : 'none'}; width: 100%; height: 100%; object-fit: cover;">
+                                        <span style="text-align: center; font-size: 11px; color: #999;" data-placeholder="true" style="display: ${variety.image_url ? 'none' : 'block'};">Click to upload</span>
+                                    </div>
+                                    <input type="hidden" class="variety-image-id" name="cw_variety_image_id_${index}" value="${variety.image_id || ''}">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 8px;">Name/Color <span style="color: red;">*</span></label>
+                                    <input type="text" name="cw_variety_color_${index}" class="variety-color-name" placeholder="e.g., Black, Large, Red M" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" value="${variety.color_name || ''}" required>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 8px;">Price</label>
+                                    <input type="number" name="cw_variety_price_${index}" class="variety-price" step="0.01" min="0" placeholder="0.00" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" value="${variety.price || '0'}">
+                                </div>
+                                <div style="padding-top: 25px;">
+                                    <button type="button" class="button button-small delete-variety-btn" data-index="${index}" style="background: #dc3545; color: white; border-color: #dc3545; cursor: pointer;">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                let galleryHtml = '';
+                galleryImages.forEach((img, index) => {
+                    galleryHtml += `
+                        <div class="gallery-item" data-image-id="${img.id}" style="position: relative; display: inline-block; margin: 5px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden;">
+                            <img src="${img.thumb}" alt="Gallery" style="width: 80px; height: 80px; object-fit: cover;">
+                            <button type="button" class="delete-gallery-btn" data-image-id="${img.id}" style="position: absolute; top: 0; right: 0; background: #dc3545; color: white; border: none; padding: 2px 6px; cursor: pointer; font-size: 12px;">×</button>
+                            <input type="hidden" name="cw_product_gallery_existing[]" value="${img.id}">
+                        </div>
+                    `;
+                });
+
+                let videosHtml = '';
+                videos.forEach((video, index) => {
+                    videosHtml += `
+                        <div class="video-item" data-video-id="${video.id}" style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; margin: 8px 0; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <span style="font-weight: 600; color: #333;">${video.title || 'Video'}</span>
+                                <br>
+                                <small style="color: #666;">${video.url}</small>
+                            </div>
+                            <button type="button" class="button button-small delete-video-btn" data-video-id="${video.id}" style="background: #dc3545; color: white; border-color: #dc3545; cursor: pointer;">Delete</button>
+                            <input type="hidden" name="cw_product_videos_existing[]" value="${video.id}">
+                        </div>
+                    `;
+                });
+
                 editContainer.innerHTML = `
                 <form class="cw-add-product-form" id="edit-product-form">
                     <input type="hidden" name="product_id" value="${product.id}">
+                    
+                    <!-- Main Image Section -->
                     <div class="cw-image-preview" style="background-image: url('${product.image}');" class="${product.image ? 'has-image' : ''}"></div>
                     <label for="edit-product-image" class="cw-image-label">Product Image</label>
                     <input type="file" id="edit-product-image" name="product_image" accept="image/*">
                     
+                    <!-- Basic Fields -->
                     <label for="edit-product-title">Title *</label>
                     <input type="text" id="edit-product-title" name="product_title" value="${product.title}" required>
                     
@@ -438,6 +500,41 @@ function loadProductForEdit(productId) {
                     
                     <label for="edit-product-description">Description</label>
                     <textarea id="edit-product-description" name="product_description" rows="6">${product.description}</textarea>
+
+                    <!-- Gallery Images Section -->
+                    <div style="margin-top: 30px; border-top: 2px solid #e0e0e0; padding-top: 20px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333;">Product Gallery (Optional)</h3>
+                        <label for="edit-product-gallery" class="cw-image-label">Gallery Images</label>
+                        <input type="file" id="edit-product-gallery" name="cw_product_gallery[]" accept="image/*" multiple>
+                        <p style="color: #666; font-size: 0.9rem; margin: 8px 0 15px;">You can select multiple images for the product gallery</p>
+                        <div id="edit-gallery-preview" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">
+                            ${galleryHtml}
+                        </div>
+                    </div>
+
+                    <!-- Videos Section -->
+                    <div style="margin-top: 30px; border-top: 2px solid #e0e0e0; padding-top: 20px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333;">Product Videos (Optional)</h3>
+                        <label for="edit-product-videos" class="cw-image-label">Upload Videos</label>
+                        <input type="file" id="edit-product-videos" name="cw_product_videos[]" accept="video/*" multiple>
+                        <p style="color: #666; font-size: 0.9rem; margin: 8px 0 15px;">Supported formats: MP4, WebM, Ogg</p>
+                        <div id="edit-videos-preview" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+                            ${videosHtml}
+                        </div>
+                    </div>
+
+                    <!-- Varieties Section -->
+                    <div class="cw-varieties-section" style="margin-top: 30px; border-top: 2px solid #e0e0e0; padding-top: 20px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333;">Product Varieties (Optional)</h3>
+                        <p style="color: #666; margin: 0 0 20px 0; font-size: 0.9rem;">Add different options for your product (colors, sizes, etc.)</p>
+                        
+                        <div id="cw-varieties-container" style="display: flex; flex-direction: column; gap: 15px;">
+                            ${varietiesHtml}
+                        </div>
+                        
+                        <button type="button" id="cw-add-variety-btn" class="button button-secondary" style="margin-top: 15px;">+ Add Variety</button>
+                        <input type="hidden" id="cw-variety-count" name="cw_variety_count" value="${varieties.length}">
+                    </div>
                     
                     <button type="submit" class="button button-accent">Update Product</button>
                     <button type="button" class="button button-outline" id="cancel-edit-btn">Cancel</button>
@@ -470,10 +567,187 @@ function loadProductForEdit(productId) {
                         reader.readAsDataURL(file);
                     }
                 });
+
+                // Handle gallery preview
+                const galleryInput = document.getElementById('edit-product-gallery');
+                const galleryPreview = document.getElementById('edit-gallery-preview');
+                galleryInput.addEventListener('change', function () {
+                    Array.from(this.files).forEach(file => {
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            const galleryItem = document.createElement('div');
+                            galleryItem.className = 'gallery-item';
+                            galleryItem.style.cssText = 'position: relative; display: inline-block; margin: 5px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden;';
+                            galleryItem.innerHTML = `
+                                <img src="${e.target.result}" alt="Gallery" style="width: 80px; height: 80px; object-fit: cover;">
+                                <button type="button" class="delete-temp-gallery-btn" style="position: absolute; top: 0; right: 0; background: #dc3545; color: white; border: none; padding: 2px 6px; cursor: pointer; font-size: 12px;">×</button>
+                            `;
+                            const deleteBtn = galleryItem.querySelector('.delete-temp-gallery-btn');
+                            deleteBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                galleryItem.remove();
+                            });
+                            galleryPreview.appendChild(galleryItem);
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                // Handle videos preview
+                const videosInput = document.getElementById('edit-product-videos');
+                const videosPreview = document.getElementById('edit-videos-preview');
+                videosInput.addEventListener('change', function () {
+                    Array.from(this.files).forEach(file => {
+                        const videoItem = document.createElement('div');
+                        videoItem.className = 'video-item';
+                        videoItem.style.cssText = 'background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; margin: 8px 0; display: flex; align-items: center; justify-content: space-between;';
+                        videoItem.innerHTML = `
+                            <div>
+                                <span style="font-weight: 600; color: #333;">${file.name}</span>
+                                <br>
+                                <small style="color: #666;">${(file.size / 1024 / 1024).toFixed(2)} MB</small>
+                            </div>
+                            <button type="button" class="button button-small delete-temp-video-btn" style="background: #dc3545; color: white; border-color: #dc3545; cursor: pointer;">Delete</button>
+                        `;
+                        const deleteBtn = videoItem.querySelector('.delete-temp-video-btn');
+                        deleteBtn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            videoItem.remove();
+                        });
+                        videosPreview.appendChild(videoItem);
+                    });
+                });
+
+                // Delete existing gallery images
+                document.querySelectorAll('.delete-gallery-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        btn.closest('.gallery-item').remove();
+                    });
+                });
+
+                // Delete existing videos
+                document.querySelectorAll('.delete-video-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        btn.closest('.video-item').remove();
+                    });
+                });
+
+                // Initialize variety form handlers
+                initializeEditVarietyHandlers(editContainer);
             } else {
                 editContainer.innerHTML = `<p style="color: red;">${data.data.message || 'Failed to load product'}</p>`;
             }
         });
+}
+
+// Initialize variety form handlers for edit form
+function initializeEditVarietyHandlers(container) {
+    let varietyCount = parseInt(container.querySelector('#cw-variety-count')?.value || 0);
+
+    // Add variety button
+    const addVarietyBtn = container.querySelector('#cw-add-variety-btn');
+    if (addVarietyBtn) {
+        addVarietyBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            addEditVarietyRow(container);
+        });
+    }
+
+    // Delete variety buttons
+    container.querySelectorAll('.delete-variety-btn').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            this.closest('.cw-variety-row').remove();
+            updateEditVarietyCount(container);
+        });
+    });
+
+    // Attach image upload handlers to existing varieties
+    container.querySelectorAll('.cw-variety-row').forEach(row => {
+        attachEditImageUploadHandler(row, container);
+    });
+}
+
+// Add new variety row for edit form
+function addEditVarietyRow(container) {
+    const varietyCount = parseInt(container.querySelector('#cw-variety-count')?.value || 0);
+    const index = varietyCount;
+    const varietiesContainer = container.querySelector('#cw-varieties-container');
+
+    const html = `
+        <div class="cw-variety-row" data-index="${index}" style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px;">
+            <div style="display: grid; grid-template-columns: 100px 1fr 150px auto; gap: 15px; align-items: start;">
+                <div>
+                    <label style="display: block; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 8px;">Image</label>
+                    <div class="variety-image-preview" style="width: 100px; height: 100px; border: 2px dashed #ddd; border-radius: 6px; background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; position: relative;">
+                        <img src="" alt="Variety Image" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                        <span style="text-align: center; font-size: 11px; color: #999;" data-placeholder="true">Click to upload</span>
+                    </div>
+                    <input type="hidden" class="variety-image-id" name="cw_variety_image_id_${index}">
+                </div>
+                <div>
+                    <label style="display: block; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 8px;">Name/Color <span style="color: red;">*</span></label>
+                    <input type="text" name="cw_variety_color_${index}" class="variety-color-name" placeholder="e.g., Black, Large, Red M" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" required>
+                </div>
+                <div>
+                    <label style="display: block; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 8px;">Price</label>
+                    <input type="number" name="cw_variety_price_${index}" class="variety-price" step="0.01" min="0" placeholder="0.00" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                </div>
+                <div style="padding-top: 25px;">
+                    <button type="button" class="button button-small delete-variety-btn" data-index="${index}" style="background: #dc3545; color: white; border-color: #dc3545; cursor: pointer;">Delete</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    varietiesContainer.insertAdjacentHTML('beforeend', html);
+    const newRow = varietiesContainer.querySelector(`[data-index="${index}"]`);
+    attachEditImageUploadHandler(newRow, container);
+
+    // Attach delete handler
+    newRow.querySelector('.delete-variety-btn').addEventListener('click', function (e) {
+        e.preventDefault();
+        this.closest('.cw-variety-row').remove();
+        updateEditVarietyCount(container);
+    });
+
+    updateEditVarietyCount(container);
+}
+
+// Image upload handler for edit form
+function attachEditImageUploadHandler(row, container) {
+    const preview = row.querySelector('.variety-image-preview');
+
+    preview.addEventListener('click', function () {
+        if (typeof wp === 'undefined' || typeof wp.media === 'undefined') {
+            alert('Media library not available. Please refresh the page.');
+            return;
+        }
+
+        const frame = wp.media({
+            title: 'Select Variety Image',
+            button: { text: 'Use Image' },
+            multiple: false
+        });
+
+        frame.on('select', function () {
+            const attachment = frame.state().get('selection').first().toJSON();
+            row.querySelector('.variety-image-id').value = attachment.id;
+            const img = row.querySelector('.variety-image-preview img');
+            img.src = attachment.url;
+            img.style.display = 'block';
+            row.querySelector('[data-placeholder]').style.display = 'none';
+        });
+
+        frame.open();
+    });
+}
+
+// Update variety count for edit form
+function updateEditVarietyCount(container) {
+    container.querySelector('#cw-variety-count').value = container.querySelectorAll('.cw-variety-row').length;
 }
 
 function updateProduct(form) {

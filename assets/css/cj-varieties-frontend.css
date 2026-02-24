@@ -1,0 +1,163 @@
+/* CJ Product Varieties Frontend Styling */
+
+.cw-cj-varieties-section {
+    margin: 20px 0;
+    padding: 20px;
+    background: linear-gradient(135deg, #f9f9f9 0%, #fafafa 100%);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.cw-cj-varieties-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* Varieties Grid */
+.cw-cj-varieties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+/* Individual Variety Item */
+.cw-cj-variety-item {
+    cursor: pointer;
+    text-align: center;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+    position: relative;
+}
+
+.cw-cj-variety-item:hover {
+    border-color: #ff8c00;
+    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.1);
+    transform: translateY(-2px);
+}
+
+.cw-cj-variety-item.selected {
+    border: 2px solid #ff4d4f;
+    background: #fff5f5;
+    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.2);
+}
+
+/* Color/Variant Name */
+.cw-cj-variety-item div:first-child {
+    font-size: 12px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Thumbnail Image */
+.cw-cj-variety-thumb {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 5px;
+    margin-bottom: 8px;
+    border: 1px solid #eee;
+    display: block;
+}
+
+/* Price Display */
+.cw-cj-variety-item-price {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ff4d4f;
+}
+
+/* Selected Variety Display */
+#cw-cj-selected-variety {
+    margin-top: 15px;
+    padding: 12px 15px;
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    border-radius: 3px;
+    display: none;
+    animation: slideDown 0.3s ease;
+}
+
+#cw-cj-selected-variety strong {
+    color: #ff9800;
+}
+
+#cw-cj-selected-price {
+    color: #ff4d4f;
+    font-weight: bold;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Size Guide */
+.cw-cj-variants-size-guide {
+    margin-top: 20px;
+    padding: 15px;
+    background: #e3f2fd;
+    border-radius: 5px;
+    text-align: center;
+    font-size: 13px;
+    color: #1976d2;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .cw-cj-varieties-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 12px;
+    }
+
+    .cw-cj-variety-item {
+        padding: 8px;
+    }
+
+    .cw-cj-variety-thumb {
+        height: 85px;
+    }
+}
+
+@media (max-width: 480px) {
+    .cw-cj-varieties-grid {
+        grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+        gap: 10px;
+    }
+
+    .cw-cj-variety-item {
+        padding: 6px;
+    }
+
+    .cw-cj-variety-thumb {
+        height: 70px;
+    }
+
+    .cw-cj-variety-item div:first-child {
+        font-size: 11px;
+    }
+}
+
+/* Print Styling */
+@media print {
+    .cw-cj-varieties-section {
+        display: none;
+    }
+}

@@ -1,0 +1,251 @@
+/* CJ Dropshipping Customer Tracking Styles */
+
+.cj-order-tracking-box {
+    background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%);
+    border: 2px solid #ff4d4f;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 2px 8px rgba(255, 77, 79, 0.1);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.cj-order-tracking-box h3 {
+    margin: 0 0 8px 0;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.cj-order-tracking-box p {
+    margin: 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.cj-order-tracking-box label {
+    display: block;
+    color: #666;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cj-order-tracking-box code {
+    background: white;
+    padding: 10px 12px;
+    display: block;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    border-radius: 4px;
+    word-break: break-all;
+    border: 1px solid #e5e5e5;
+}
+
+/* Tracking grid layout */
+.cj-order-tracking-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin: 15px 0;
+}
+
+@media (max-width: 768px) {
+    .cj-order-tracking-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.cj-tracking-item {
+    background: white;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #e5e5e5;
+}
+
+.cj-tracking-item label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.cj-tracking-item p {
+    margin: 0;
+    color: #333;
+    font-weight: 500;
+}
+
+/* Tracking buttons */
+.cj-tracking-btn {
+    display: inline-block;
+    background: #ff4d4f;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 15px;
+}
+
+.cj-tracking-btn:hover {
+    background: #d9393f;
+    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3);
+    transform: translateY(-2px);
+}
+
+.cj-tracking-btn:active {
+    transform: translateY(0);
+}
+
+.cj-tracking-btn:visited {
+    color: white;
+}
+
+/* Order timeline */
+.cj-order-timeline {
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.cj-order-timeline h4 {
+    margin-top: 0;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.cj-timeline-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    overflow-x: auto;
+    padding: 10px 0;
+}
+
+.cj-timeline-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+}
+
+.cj-timeline-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.cj-timeline-icon.active {
+    background: #ff4d4f;
+    color: white;
+    box-shadow: 0 2px 8px rgba(255, 77, 79, 0.3);
+}
+
+.cj-timeline-icon.inactive {
+    background: #e5e5e5;
+    color: #999;
+}
+
+.cj-timeline-label {
+    font-size: 12px;
+    text-align: center;
+    font-weight: 500;
+    color: #666;
+}
+
+.cj-timeline-label.active {
+    color: #333;
+    font-weight: 600;
+}
+
+/* Tracking status badge */
+.cj-tracking-status {
+    display: inline-block;
+    background: #ff4d4f;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+.cj-tracking-status.pending {
+    background: #faad14;
+}
+
+.cj-tracking-status.processing {
+    background: #1890ff;
+}
+
+.cj-tracking-status.shipped {
+    background: #ff4d4f;
+}
+
+.cj-tracking-status.delivered {
+    background: #52c41a;
+}
+
+/* Carrier icon */
+.cj-carrier-icon {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* Responsive tracking box */
+@media (max-width: 600px) {
+    .cj-order-tracking-box {
+        padding: 15px;
+        margin: 15px 0;
+    }
+
+    .cj-order-tracking-box h3 {
+        font-size: 14px;
+    }
+
+    .cj-order-tracking-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cj-tracking-btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    .cj-timeline-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* Email-friendly tracking styles */
+@media print {
+    .cj-order-tracking-box {
+        border: 1px solid #ccc;
+        page-break-inside: avoid;
+    }
+
+    .cj-tracking-btn {
+        display: none;
+    }
+}

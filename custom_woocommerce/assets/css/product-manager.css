@@ -1,0 +1,277 @@
+/**
+ * Product Manager Styles
+ */
+
+.product-manager-page {
+    padding: 30px 0;
+}
+
+.product-manager-page h1 {
+    margin-bottom: 30px;
+    color: #333;
+}
+
+/* Tabs */
+.pm-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #e0e0e0;
+    overflow-x: auto;
+    padding-bottom: 10px;
+}
+
+.pm-tab-btn {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #666;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.pm-tab-btn:hover {
+    color: #333;
+}
+
+.pm-tab-btn.active {
+    color: #0073aa;
+    border-bottom-color: #0073aa;
+}
+
+/* Tab Content */
+.pm-tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.pm-tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Products Grid */
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.product-item {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.product-item:hover {
+    border-color: #0073aa;
+    box-shadow: 0 4px 16px rgba(0, 115, 170, 0.15);
+}
+
+.product-image {
+    width: 100%;
+    padding-bottom: 100%;
+    position: relative;
+    background: #f5f5f5;
+    overflow: hidden;
+}
+
+.product-image img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.product-details {
+    padding: 15px;
+}
+
+.product-details h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.product-details .price {
+    color: #0073aa;
+    font-weight: 600;
+    margin: 8px 0;
+    font-size: 13px;
+}
+
+.product-details .sku {
+    color: #999;
+    font-size: 12px;
+    margin: 8px 0;
+}
+
+.product-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.product-actions .button {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 12px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.button-outline {
+    background: white;
+    color: #0073aa;
+    border: 1px solid #0073aa;
+}
+
+.button-outline:hover {
+    background: #f0f7ff;
+}
+
+/* Bulk Upload */
+.bulk-upload-container {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 30px;
+}
+
+.bulk-upload-label {
+    display: block;
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: #333;
+}
+
+#bulk-images {
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+.bulk-images-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    margin-bottom: 30px;
+}
+
+.bulk-image-preview {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f5f5f5;
+}
+
+.bulk-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.bulk-forms-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.bulk-product-form {
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.bulk-product-form h3 {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.form-group {
+    margin-bottom: 12px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #0073aa;
+    box-shadow: 0 0 0 2px rgba(0, 115, 170, 0.1);
+}
+
+#bulkAddAllBtn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .pm-tabs {
+        flex-wrap: wrap;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 15px;
+    }
+
+    .bulk-forms-container {
+        grid-template-columns: 1fr;
+    }
+
+    .product-actions {
+        flex-direction: column;
+    }
+
+    .product-actions .button {
+        width: 100%;
+    }
+}
