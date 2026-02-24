@@ -110,33 +110,44 @@ get_header( 'shop' );
 					<?php echo wp_kses_post($product->get_price_html()); ?>
 				</div>
 
-				<!-- Shipping Info Summary (minimal) -->
-				<div class="csp-shipping-summary">
-					<div class="csp-ship-icon">🌍</div>
-					<div class="csp-ship-text">
-						<strong>Shipping From:</strong> <span>China</span>
-					</div>
-				</div>
-
 				<!-- VARIETIES/COLOR SWATCHES -->
 				<?php
 				$varieties = get_post_meta($product_id, '_cj_varieties', true);
 				if (!empty($varieties) && is_array($varieties)) {
 					?>
 					<div class="csp-varieties-section">
-						<label class="csp-variety-label">Color</label>
+						<label class="csp-variety-label">Color <span class="csp-variety-selected" id="csp-variety-selected"></span></label>
 						<div class="csp-varieties-grid">
 							<?php
 							foreach ($varieties as $index => $variety) {
 								$image_url = !empty($variety['image_id']) ? wp_get_attachment_image_url($variety['image_id'], 'thumbnail') : '';
 								$active_class = ($index === 0) ? 'active' : '';
+								$variety_name = '';
+								if (!empty($variety['color_name'])) {
+									$variety_name = $variety['color_name'];
+								} else if (!empty($variety['name'])) {
+									$variety_name = $variety['name'];
+								} else if (!empty($variety['color'])) {
+									$variety_name = $variety['color'];
+								} else if (!empty($variety['variant_name'])) {
+									$variety_name = $variety['variant_name'];
+								} else if (!empty($variety['variant'])) {
+									$variety_name = $variety['variant'];
+								} else if (!empty($variety['option'])) {
+									$variety_name = $variety['option'];
+								} else if (!empty($variety['title'])) {
+									$variety_name = $variety['title'];
+								}
+								if ($variety_name === '') {
+									$variety_name = 'Option ' . ($index + 1);
+								}
 								
-								echo '<div class="csp-variety-swatch ' . $active_class . '" data-variety-index="' . $index . '" data-variety-name="' . esc_attr($variety['color_name']) . '" data-variety-price="' . esc_attr($variety['price']) . '" title="' . esc_attr($variety['color_name']) . '">';
+								echo '<div class="csp-variety-swatch ' . $active_class . '" data-variety-index="' . $index . '" data-variety-name="' . esc_attr($variety_name) . '" data-variety-price="' . esc_attr($variety['price']) . '" title="' . esc_attr($variety_name) . '">';
 								
 								if ($image_url) {
-									echo '<img src="' . esc_attr($image_url) . '" alt="' . esc_attr($variety['color_name']) . '">';
+									echo '<img src="' . esc_attr($image_url) . '" alt="' . esc_attr($variety_name) . '">';
 								} else {
-									echo '<span class="csp-variety-name">' . esc_html(substr($variety['color_name'], 0, 2)) . '</span>';
+									echo '<span class="csp-variety-name">' . esc_html(substr($variety_name, 0, 2)) . '</span>';
 								}
 								
 								echo '</div>';

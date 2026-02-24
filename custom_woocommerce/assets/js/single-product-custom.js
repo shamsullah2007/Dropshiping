@@ -6,6 +6,21 @@
 document.addEventListener('DOMContentLoaded', function () {
     console.log('CSP Script Loaded');
 
+    // Remove any shipping summary bar injected by other templates
+    document.querySelectorAll('*').forEach(el => {
+        if (el.children.length === 0 && el.textContent && el.textContent.includes('Shipping From:')) {
+            const container = el.closest('div');
+            if (container) {
+                container.style.display = 'none';
+            }
+        }
+    });
+
+    // Hide the default WooCommerce quantity field next to Add to cart
+    document.querySelectorAll('form.cart .quantity').forEach(el => {
+        el.style.display = 'none';
+    });
+
     // ===== GALLERY SWITCHING =====
     const thumbs = document.querySelectorAll('.csp-thumb');
     const mainImage = document.getElementById('csp-main-image');

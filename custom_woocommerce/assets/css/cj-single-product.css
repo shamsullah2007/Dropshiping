@@ -262,6 +262,11 @@
     height: 44px;
 }
 
+/* Hide the small quantity box next to Add to cart */
+.woocommerce div.product .quantity {
+    display: none !important;
+}
+
 .woocommerce div.product .quantity input.qty {
     width: 60px !important;
     padding: 0 12px !important;
@@ -293,6 +298,12 @@
     flex: 1 !important;
     min-width: 180px !important;
     width: auto !important;
+}
+
+/* Force-hide the small quantity box next to Add to cart */
+.woocommerce.single-product .product form.cart .quantity,
+.woocommerce.single-product .product form.cart .quantity .qty {
+    display: none !important;
 }
 
 .woocommerce div.product .single_add_to_cart_button:hover,
