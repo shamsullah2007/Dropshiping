@@ -102,7 +102,7 @@
 /* Variety Row */
 .cw-variety-row {
     display: grid;
-    grid-template-columns: 100px 1fr 120px auto;
+    grid-template-columns: 60px 1fr 120px auto;
     gap: 15px;
     align-items: start;
     padding: 15px;
@@ -149,8 +149,8 @@
 /* Image Preview */
 .cw-image-preview {
     position: relative;
-    width: 100px;
-    height: 100px;
+    width: 40px;
+    height: 40px;
     border: 2px dashed #ddd;
     border-radius: 6px;
     overflow: hidden;

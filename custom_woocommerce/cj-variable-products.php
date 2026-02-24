@@ -350,6 +350,8 @@ function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $cate
     if (!empty($variants) && function_exists('cw_cj_sideload_image')) {
         $images = [];
         $gallery_ids = [];
+        $first_image_id = null;
+        
         foreach ($variants as $variant) {
             $variant_image_url = cw_cj_get_variant_image_url($variant);
             if (!empty($variant_image_url) && !in_array($variant_image_url, $images)) {
@@ -358,18 +360,22 @@ function cw_cj_create_variable_product($product, $variants, $markup = 0.5, $cate
                 // Sideload image
                 $img_id = cw_cj_sideload_image($variant_image_url, $product_id, $product_name . ' - ' . ($variant['variantName'] ?? 'Image'), true);
                 if (!is_wp_error($img_id)) {
-                    if (!$wc_product->get_image_id()) {
-                        $wc_product->set_image_id($img_id); // Set first as main
-                    } else {
-                        $gallery_ids[] = $img_id; // Collect gallery images
+                    // Add all images to gallery
+                    $gallery_ids[] = $img_id;
+                    
+                    // Use first image as main if not set
+                    if ($first_image_id === null) {
+                        $first_image_id = $img_id;
+                        $wc_product->set_image_id($img_id);
                     }
                 }
             }
         }
         
-        // Set gallery images if collected
+        // Set gallery images (includes main image and all variants)
         if (!empty($gallery_ids)) {
             $wc_product->set_gallery_image_ids($gallery_ids);
+            error_log('[CJ Import] Importing ' . count($gallery_ids) . ' images for product ' . $product_id);
         }
         $wc_product->save();
     }

@@ -423,12 +423,12 @@ function loadProductForEdit(productId) {
                 varieties.forEach((variety, index) => {
                     varietiesHtml += `
                         <div class="cw-variety-row" data-index="${index}" style="background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px;">
-                            <div style="display: grid; grid-template-columns: 100px 1fr 150px auto; gap: 15px; align-items: start;">
+                            <div style="display: grid; grid-template-columns: 60px 1fr 150px auto; gap: 15px; align-items: start;">
                                 <div>
                                     <label style="display: block; font-weight: 600; font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 8px;">Image</label>
-                                    <div class="variety-image-preview" style="width: 100px; height: 100px; border: 2px dashed #ddd; border-radius: 6px; background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; position: relative;">
+                                    <div class="variety-image-preview" style="width: 40px; height: 40px; border: 2px dashed #ddd; border-radius: 6px; background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; position: relative;">
                                         <img src="${variety.image_url}" alt="Variety Image" style="display: ${variety.image_url ? 'block' : 'none'}; width: 100%; height: 100%; object-fit: cover;">
-                                        <span style="text-align: center; font-size: 11px; color: #999;" data-placeholder="true" style="display: ${variety.image_url ? 'none' : 'block'};">Click to upload</span>
+                                        <span style="text-align: center; font-size: 9px; color: #999;" data-placeholder="true" style="display: ${variety.image_url ? 'none' : 'block'};">Click</span>
                                     </div>
                                     <input type="hidden" class="variety-image-id" name="cw_variety_image_id_${index}" value="${variety.image_id || ''}">
                                 </div>
