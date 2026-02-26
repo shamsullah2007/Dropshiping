@@ -12,6 +12,136 @@ require_once dirname(__FILE__) . '/cj-product-varieties-frontend.php';
 require_once dirname(__FILE__) . '/cj-product-video-autoplay.php';
 require_once dirname(__FILE__) . '/cj-frontend-variety-editor.php';
 
+// ==================== DELIVERY DIAGNOSIS ADMIN PAGE ====================
+add_action('admin_menu', function() {
+    add_submenu_page(
+        'tools.php',
+        'Delivery Diagnosis',
+        'Delivery Diagnosis',
+        'manage_options',
+        'cw-delivery-diagnosis',
+        function() {
+            global $wpdb;
+            if (!current_user_can('manage_options')) return;
+            ?>
+            <div class="wrap">
+                <h1>🔍 Delivery Charges & ETA - Diagnosis</h1>
+                
+                <div style="margin: 20px 0;">
+                    <h2>STEP 1: Check PHP File</h2>
+                    <?php
+                    $file_exists = file_exists(get_template_directory() . '/custom_woocommerce/cj-product-varieties-admin.php');
+                    ?>
+                    <div style="background: <?php echo $file_exists ? '#d4edda' : '#f8d7da'; ?>; border: 1px solid <?php echo $file_exists ? '#28a745' : '#f5c6cb'; ?>; padding: 12px; margin: 10px 0; border-radius: 4px;">
+                        <strong><?php echo $file_exists ? '✓ PASS' : '✗ FAIL'; ?>:</strong> 
+                        <?php echo $file_exists ? 'File exists' : 'File not found'; ?>
+                    </div>
+
+                    <h2>STEP 2: Check Functions Are Loaded</h2>
+                    <?php
+                    $func_metabox = function_exists('cw_cj_register_varieties_metabox');
+                    $func_render = function_exists('cw_cj_render_varieties_metabox');
+                    $func_save = function_exists('cw_cj_save_varieties');
+                    $func_ajax = function_exists('cw_ajax_save_delivery_details_admin');
+                    $all_functions = $func_metabox && $func_render && $func_save && $func_ajax;
+                    ?>
+                    
+                    <table class="widefat">
+                        <thead>
+                            <tr><th>Function</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>cw_cj_register_varieties_metabox</code></td>
+                                <td><?php echo $func_metabox ? '<span style="color: green;">✓ Loaded</span>' : '<span style="color: red;">✗ Not loaded</span>'; ?></td>
+                            </tr>
+                            <tr>
+                                <td><code>cw_cj_render_varieties_metabox</code></td>
+                                <td><?php echo $func_render ? '<span style="color: green;">✓ Loaded</span>' : '<span style="color: red;">✗ Not loaded</span>'; ?></td>
+                            </tr>
+                            <tr>
+                                <td><code>cw_cj_save_varieties</code></td>
+                                <td><?php echo $func_save ? '<span style="color: green;">✓ Loaded</span>' : '<span style="color: red;">✗ Not loaded</span>'; ?></td>
+                            </tr>
+                            <tr>
+                                <td><code>cw_ajax_save_delivery_details_admin</code></td>
+                                <td><?php echo $func_ajax ? '<span style="color: green;">✓ Loaded</span>' : '<span style="color: red;">✗ Not loaded</span>'; ?></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h2>STEP 3: Database Data</h2>
+                    <?php
+                    $postmeta_table = $wpdb->postmeta;
+                    $with_charges = $wpdb->get_var("SELECT COUNT(DISTINCT post_id) FROM $postmeta_table WHERE meta_key = '_cj_delivery_charges'");
+                    $with_eta = $wpdb->get_var("SELECT COUNT(DISTINCT post_id) FROM $postmeta_table WHERE meta_key = '_cj_delivery_eta'");
+                    ?>
+                    
+                    <p>
+                        <strong>Products with Delivery Charges:</strong> <span style="color: #0073aa; font-weight: bold;"><?php echo $with_charges; ?></span><br>
+                        <strong>Products with ETA:</strong> <span style="color: #0073aa; font-weight: bold;"><?php echo $with_eta; ?></span>
+                    </p>
+
+                    <h2>STEP 4: Recent Products Data</h2>
+                    <?php
+                    // Use a simpler, more reliable query
+                    $raw_query = "
+                        SELECT DISTINCT pm.post_id as ID, p.post_title
+                        FROM {$wpdb->postmeta} pm
+                        JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+                        WHERE pm.meta_key IN ('_cj_delivery_charges', '_cj_delivery_eta')
+                        ORDER BY pm.post_id DESC
+                        LIMIT 10
+                    ";
+                    
+                    $products_with_data = $wpdb->get_results($raw_query);
+                    
+                    if (!empty($products_with_data)) {
+                        echo '<table class="widefat">';
+                        echo '<thead><tr><th>ID</th><th>Product Name</th><th>Charges</th><th>ETA</th></tr></thead><tbody>';
+                        
+                        foreach ($products_with_data as $row) {
+                            // Get charges and eta separately
+                            $charges = get_post_meta($row->ID, '_cj_delivery_charges', true);
+                            $eta = get_post_meta($row->ID, '_cj_delivery_eta', true);
+                            
+                            echo '<tr>';
+                            echo '<td><strong>' . esc_html($row->ID) . '</strong></td>';
+                            echo '<td><a href="' . esc_url(admin_url('post.php?post=' . $row->ID . '&action=edit')) . '" target="_blank">' . esc_html(substr($row->post_title, 0, 50)) . '</a></td>';
+                            echo '<td style="color: ' . ($charges ? '#22863a' : '#ccc') . ';">' . esc_html($charges ?: '(empty)') . '</td>';
+                            echo '<td style="color: ' . ($eta ? '#22863a' : '#ccc') . ';">' . esc_html($eta ?: '(empty)') . '</td>';
+                            echo '</tr>';
+                        }
+                        echo '</tbody></table>';
+                    } else {
+                        echo '<p style="color: orange;">No products found with delivery data</p>';
+                    }
+                    ?>
+                    
+                    <p style="margin-top: 15px;">
+                        <button type="button" class="button button-secondary" onclick="location.reload();">🔄 Refresh Data</button>
+                    </p>
+
+                    <h2>NEXT STEPS</h2>
+                    <?php if ($all_functions && $file_exists) { ?>
+                        <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 15px; margin: 10px 0;">
+                            <p><strong>✓ All PHP is loaded correctly!</strong></p>
+                            <p>Go to: <a href="<?php echo esc_url(admin_url('edit.php?post_type=product')); ?>">Products</a> → Edit a product</p>
+                            <p>Look for the <strong>"🎨 CJ Product Varieties & Pricing"</strong> metabox and test the delivery fields.</p>
+                        </div>
+                    <?php } else { ?>
+                        <div style="background: #fff3cd; border-left: 4px solid #ff9800; padding: 15px; margin: 10px 0;">
+                            <p><strong>⚠️ Issue Detected:</strong> PHP functions not loaded</p>
+                            <p>Check wp-content/debug.log for errors</p>
+                        </div>
+                    <?php } ?>
+                </div>
+            </div>
+            <?php
+        }
+    );
+});
+
 // ==================== NGROK URL FIXES ====================
 
 // Force ngrok URLs when accessed via ngrok proxy

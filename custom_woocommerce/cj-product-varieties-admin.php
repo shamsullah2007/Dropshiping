@@ -11,6 +11,87 @@ if (!defined('ABSPATH')) {
 }
 
 /**
+ * Admin notice for successful saves
+ */
+add_action('admin_notices', 'cw_cj_varieties_admin_notices');
+function cw_cj_varieties_admin_notices() {
+    if (get_transient('cw_cj_varieties_saved')) {
+        echo '<div class="notice notice-success is-dismissible"><p><strong>✓ Delivery details and varieties saved successfully.</strong></p></div>';
+        delete_transient('cw_cj_varieties_saved');
+    }
+}
+
+/**
+ * Enqueue admin scripts and styles
+ */
+add_action('admin_enqueue_scripts', 'cw_cj_varieties_enqueue_admin_scripts');
+function cw_cj_varieties_enqueue_admin_scripts($hook_suffix) {
+    global $post;
+    
+    // Only load on product edit page
+    if ($hook_suffix !== 'post.php' || !isset($post) || 'product' !== get_post_type($post)) {
+        return;
+    }
+    
+    // Use theme directory path for reliability
+    $script_path = get_template_directory() . '/custom_woocommerce/js/cj-varieties-admin.js';
+    $script_url = get_template_directory_uri() . '/custom_woocommerce/js/cj-varieties-admin.js';
+    
+    // Only enqueue if file exists
+    if (file_exists($script_path)) {
+        wp_enqueue_script('cw-cj-varieties-admin', $script_url, ['jquery'], filemtime($script_path), true);
+        wp_localize_script('cw-cj-varieties-admin', 'cwCJVarietiesAdmin', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('cw_cj_varieties_admin_nonce'),
+            'product_id' => $post->ID,
+        ]);
+        
+        error_log("CJ Varieties Admin Script Enqueued - Product: {$post->ID}");
+    } else {
+        error_log("CJ Varieties Admin Script NOT FOUND at: $script_path");
+    }
+}
+
+/**
+ * AJAX: Save delivery details from admin form
+ */
+add_action('wp_ajax_cw_save_delivery_details_admin', 'cw_ajax_save_delivery_details_admin');
+function cw_ajax_save_delivery_details_admin() {
+    // Verify nonce
+    check_ajax_referer('cw_cj_varieties_admin_nonce', 'nonce');
+    
+    // Check permissions
+    if (!current_user_can('edit_post', intval($_POST['product_id']))) {
+        wp_send_json_error('Insufficient permissions');
+    }
+    
+    $product_id = intval($_POST['product_id']);
+    $delivery_charges = sanitize_text_field($_POST['delivery_charges'] ?? '');
+    $delivery_eta = sanitize_text_field($_POST['delivery_eta'] ?? '');
+    
+    // Save data
+    if ($delivery_charges !== '') {
+        update_post_meta($product_id, '_cj_delivery_charges', $delivery_charges);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_charges');
+    }
+    
+    if ($delivery_eta !== '') {
+        update_post_meta($product_id, '_cj_delivery_eta', $delivery_eta);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_eta');
+    }
+    
+    error_log("AJAX Save - Product ID: $product_id, Charges: $delivery_charges, ETA: $delivery_eta");
+    
+    wp_send_json_success([
+        'message' => 'Delivery details saved successfully',
+        'delivery_charges' => $delivery_charges,
+        'delivery_eta' => $delivery_eta,
+    ]);
+}
+
+/**
  * Register metabox for product varieties
  */
 add_action('add_meta_boxes', 'cw_cj_register_varieties_metabox');
@@ -43,6 +124,10 @@ function cw_cj_render_varieties_metabox($post) {
     }
     
     wp_nonce_field('cw_cj_varieties_nonce', 'cw_cj_varieties_nonce_field');
+    
+    // Add AJAX nonce as hidden field for inline script
+    $ajax_nonce = wp_create_nonce('cw_cj_varieties_admin_nonce');
+    echo '<input type="hidden" id="cw_delivery_ajax_nonce" value="' . esc_attr($ajax_nonce) . '">';
     
     ?>
     <div id="cw-cj-varieties" style="padding: 15px; background: #f9f9f9;">
@@ -179,6 +264,94 @@ function cw_cj_render_varieties_metabox($post) {
                 $(this).closest('.cw-cj-variety-row').remove();
             }
         });
+        
+        // ============================================================================
+        // INLINE AUTO-SAVE FOR DELIVERY DETAILS (Fallback if external JS doesn't load)
+        // ============================================================================
+        
+        let deliveryAutoSaveTimeout = null;
+        const deliveryAjaxNonce = jQuery('#cw_delivery_ajax_nonce').val();
+        const deliveryProductId = jQuery('input[name="post_ID"]').val();
+        
+        // Monitor delivery fields for changes
+        $(document).on('change input', 'input[name="cw_cj_delivery_charges"], input[name="cw_cj_delivery_eta"]', function() {
+            clearTimeout(deliveryAutoSaveTimeout);
+            
+            // Show status that changes were detected
+            $('input[name="cw_cj_delivery_charges"], input[name="cw_cj_delivery_eta"]').css('border-color', '#ffc107');
+            
+            // Auto-save after 2 seconds
+            deliveryAutoSaveTimeout = setTimeout(function() {
+                const charges = $('input[name="cw_cj_delivery_charges"]').val().trim();
+                const eta = $('input[name="cw_cj_delivery_eta"]').val().trim();
+                
+                console.log('Attempting to save - Charges:', charges, 'ETA:', eta);
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'cw_save_delivery_details_admin',
+                        nonce: deliveryAjaxNonce,
+                        product_id: deliveryProductId,
+                        delivery_charges: charges,
+                        delivery_eta: eta
+                    },
+                    success: function(response) {
+                        console.log('AJAX Response:', response);
+                        
+                        // Green border to indicate saved
+                        $('input[name="cw_cj_delivery_charges"], input[name="cw_cj_delivery_eta"]').css('border-color', '#28a745');
+                        
+                        // Show temporary message
+                        showDeliveryNotice('✓ Delivery details saved automatically');
+                        
+                        // Reset color after 2 seconds
+                        setTimeout(function() {
+                            $('input[name="cw_cj_delivery_charges"], input[name="cw_cj_delivery_eta"]').css('border-color', '#ddd');
+                        }, 2000);
+                    },
+                    error: function(error) {
+                        console.error('AJAX Error:', error);
+                        showDeliveryNotice('Error saving delivery details', 'error');
+                    }
+                });
+            }, 2000);
+        });
+        
+        // Show/hide delivery notice
+        function showDeliveryNotice(message, type) {
+            type = type || 'success';
+            const bgColor = type === 'success' ? '#4CAF50' : '#f44336';
+            
+            $('.cw-delivery-inline-notice').remove();
+            
+            const notice = $(`
+                <div class="cw-delivery-inline-notice" style="
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    background: ${bgColor};
+                    color: white;
+                    padding: 12px 20px;
+                    border-radius: 4px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    z-index: 99999;
+                    font-size: 13px;
+                    font-weight: bold;
+                ">
+                    ${message}
+                </div>
+            `);
+            
+            $('body').append(notice);
+            
+            setTimeout(function() {
+                notice.fadeOut(300, function() { $(this).remove(); });
+            }, 3000);
+        }
+        
+        console.log('✓ Delivery Details Auto-Save: ACTIVE (Inline)');
     });
     </script>
     
@@ -254,22 +427,28 @@ function cw_cj_render_variety_row($product_id, $index, $variety) {
 /**
  * Save varieties when product is saved
  */
-add_action('save_post_product', 'cw_cj_save_varieties', 20, 1);
+add_action('save_post_product', 'cw_cj_save_varieties', 10, 1);
 function cw_cj_save_varieties($post_id) {
-    // Security check
+    // Skip if no nonce field
     if (!isset($_POST['cw_cj_varieties_nonce_field'])) {
         return;
     }
     
-    if (!wp_verify_nonce($_POST['cw_cj_varieties_nonce_field'], 'cw_cj_varieties_nonce')) {
+    // Verify nonce
+    $nonce = sanitize_text_field($_POST['cw_cj_varieties_nonce_field']);
+    if (!wp_verify_nonce($nonce, 'cw_cj_varieties_nonce')) {
+        // Nonce failed - log for debugging
+        error_log('Nonce verification failed for delivery details save on product ' . $post_id);
         return;
     }
     
+    // Skip autosave
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
         return;
     }
     
-    if (!current_user_can('edit_posts')) {
+    // Check user capabilities
+    if (!current_user_can('edit_post', $post_id)) {
         return;
     }
     
@@ -277,6 +456,7 @@ function cw_cj_save_varieties($post_id) {
     $delivery_charges = isset($_POST['cw_cj_delivery_charges']) ? sanitize_text_field($_POST['cw_cj_delivery_charges']) : '';
     $delivery_eta = isset($_POST['cw_cj_delivery_eta']) ? sanitize_text_field($_POST['cw_cj_delivery_eta']) : '';
 
+    // Always save values (even if empty, to ensure consistency)
     if ($delivery_charges !== '') {
         update_post_meta($post_id, '_cj_delivery_charges', $delivery_charges);
     } else {
@@ -288,6 +468,9 @@ function cw_cj_save_varieties($post_id) {
     } else {
         delete_post_meta($post_id, '_cj_delivery_eta');
     }
+    
+    // Log successful save
+    error_log('Delivery details saved - Charges: ' . $delivery_charges . ', ETA: ' . $delivery_eta);
 
     // Get all variety data
     $indices = isset($_POST['cw_cj_variety_index']) ? (array) $_POST['cw_cj_variety_index'] : [];
@@ -335,6 +518,9 @@ function cw_cj_save_varieties($post_id) {
     } else {
         delete_post_meta($post_id, '_cj_varieties');
     }
+    
+    // Set transient to show success notice
+    set_transient('cw_cj_varieties_saved', true, 30);
 }
 
 ?>
