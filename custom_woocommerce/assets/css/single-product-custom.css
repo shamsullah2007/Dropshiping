@@ -355,6 +355,36 @@
     margin-left: auto;
 }
 
+/* Delivery Information Section */
+.csp-delivery-section {
+    padding: 15px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.csp-delivery-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.csp-delivery-row:last-child {
+    margin-bottom: 0;
+}
+
+.csp-delivery-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.csp-delivery-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: #007bff;
+}
+
 /* Total Price Section */
 .csp-total-section {
     display: flex;

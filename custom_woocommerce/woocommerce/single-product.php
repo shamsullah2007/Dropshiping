@@ -159,6 +159,32 @@ get_header( 'shop' );
 					</div>
 				</div>
 
+				<!-- Delivery Information -->
+				<?php
+				$delivery_charges = get_post_meta($product_id, '_cj_delivery_charges', true);
+				$delivery_eta = get_post_meta($product_id, '_cj_delivery_eta', true);
+				
+				if (!empty($delivery_charges) || !empty($delivery_eta)) {
+					?>
+					<div class="csp-delivery-section">
+						<?php if (!empty($delivery_charges)) { ?>
+							<div class="csp-delivery-row">
+								<span class="csp-delivery-label">Delivery Charges:</span>
+								<span class="csp-delivery-value"><?php echo esc_html($delivery_charges); ?></span>
+							</div>
+						<?php } ?>
+						
+						<?php if (!empty($delivery_eta)) { ?>
+							<div class="csp-delivery-row">
+								<span class="csp-delivery-label">ETA:</span>
+								<span class="csp-delivery-value"><?php echo esc_html($delivery_eta); ?></span>
+							</div>
+						<?php } ?>
+					</div>
+					<?php
+				}
+				?>
+
 				<!-- Total Price -->
 				<div class="csp-total-section">
 					<span class="csp-total-label">Total:</span>
