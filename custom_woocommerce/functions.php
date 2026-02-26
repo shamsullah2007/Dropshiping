@@ -1056,6 +1056,8 @@ function custom_woocommerce_add_product_form_shortcode()
             $sku = isset($_POST['cw_product_sku']) ? sanitize_text_field($_POST['cw_product_sku']) : '';
             $description = isset($_POST['cw_product_description']) ? wp_kses_post($_POST['cw_product_description']) : '';
             $category = isset($_POST['cw_product_category']) ? sanitize_text_field($_POST['cw_product_category']) : '';
+            $delivery_charges = isset($_POST['cw_product_delivery_charges']) ? sanitize_text_field($_POST['cw_product_delivery_charges']) : '';
+            $delivery_eta = isset($_POST['cw_product_delivery_eta']) ? sanitize_text_field($_POST['cw_product_delivery_eta']) : '';
 
             if (empty($title) || empty($price)) {
                 $message = '<p class="cw-form-error">' . esc_html__('Title and price are required.', 'custom-woocommerce') . '</p>';
@@ -1202,6 +1204,14 @@ function custom_woocommerce_add_product_form_shortcode()
                         }
                     }
                     
+                    // Handle delivery charges and ETA
+                    if (!empty($delivery_charges)) {
+                        update_post_meta($product_id, '_cj_delivery_charges', $delivery_charges);
+                    }
+                    if (!empty($delivery_eta)) {
+                        update_post_meta($product_id, '_cj_delivery_eta', $delivery_eta);
+                    }
+                    
                     // Save again with all updates
                     $product->save();
 
@@ -1283,6 +1293,25 @@ function custom_woocommerce_add_product_form_shortcode()
         <label for="cw-product-description"><?php esc_html_e('Description', 'custom-woocommerce'); ?></label>
         <textarea id="cw-product-description" name="cw_product_description" rows="6"></textarea>
 
+        <!-- Delivery & ETA Section -->
+        <div class="cw-delivery-section" style="margin-top: 30px; border-top: 2px solid #e0e0e0; padding-top: 20px;">
+            <h3 style="margin: 0 0 15px 0; color: #333;">
+                <?php esc_html_e('Delivery Information', 'custom-woocommerce'); ?>
+            </h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <label for="cw-delivery-charges"><?php esc_html_e('Delivery Charges', 'custom-woocommerce'); ?></label>
+                    <input type="text" id="cw-delivery-charges" name="cw_product_delivery_charges" placeholder="e.g., $10" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                
+                <div>
+                    <label for="cw-delivery-eta"><?php esc_html_e('Delivery ETA', 'custom-woocommerce'); ?></label>
+                    <input type="text" id="cw-delivery-eta" name="cw_product_delivery_eta" placeholder="e.g., 3-7 days" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+            </div>
+        </div>
+
         <!-- Varieties Section -->
         <div class="cw-varieties-section" style="margin-top: 30px; border-top: 2px solid #e0e0e0; padding-top: 20px;">
             <h3 style="margin: 0 0 15px 0; color: #333;">
@@ -1307,6 +1336,91 @@ function custom_woocommerce_add_product_form_shortcode()
             <?php esc_html_e('Create Product', 'custom-woocommerce'); ?>
         </button>
     </form>
+
+    <script>
+    jQuery(document).ready(function($) {
+        var deliveryAutoSaveTimeout;
+        var deliveryProductId = 0;
+        
+        // Add nonce for AJAX calls
+        var deliveryFrontendNonce = '<?php echo wp_create_nonce("cw_delivery_frontend_nonce"); ?>';
+        
+        // Handle delivery field changes with auto-save
+        $(document).on('change input', '#cw-delivery-charges, #cw-delivery-eta', function() {
+            // Clear previous timeout
+            clearTimeout(deliveryAutoSaveTimeout);
+            
+            // Change border color to yellow to show changes detected
+            $('#cw-delivery-charges, #cw-delivery-eta').css('border-color', '#f0ad4e');
+            
+            // Set new timeout for auto-save
+            deliveryAutoSaveTimeout = setTimeout(function() {
+                var charges = $('#cw-delivery-charges').val();
+                var eta = $('#cw-delivery-eta').val();
+                
+                // Only save if at least one field has content
+                if (charges || eta) {
+                    // Note: Auto-save only works after product is created and we have a product ID
+                    // For new products, save happens on form submission
+                    if (deliveryProductId > 0) {
+                        $.ajax({
+                            url: ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'cw_save_delivery_frontend',
+                                nonce: deliveryFrontendNonce,
+                                product_id: deliveryProductId,
+                                delivery_charges: charges,
+                                delivery_eta: eta
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    // Change border to green to show saved
+                                    $('#cw-delivery-charges, #cw-delivery-eta').css('border-color', '#5cb85c');
+                                    
+                                    // Show notification
+                                    showDeliveryNotification('Delivery information saved', 'success');
+                                    
+                                    // Reset border color after 3 seconds
+                                    setTimeout(function() {
+                                        $('#cw-delivery-charges, #cw-delivery-eta').css('border-color', '#ddd');
+                                    }, 3000);
+                                } else {
+                                    showDeliveryNotification('Error saving: ' + response.data.message, 'error');
+                                }
+                            },
+                            error: function() {
+                                showDeliveryNotification('Error saving delivery information', 'error');
+                            }
+                        });
+                    }
+                }
+            }, 2000); // 2 second debounce
+        });
+        
+        // Helper function to show notifications
+        function showDeliveryNotification(message, type) {
+            var bgColor = (type === 'success') ? '#d4edda' : '#f8d7da';
+            var textColor = (type === 'success') ? '#155724' : '#721c24';
+            var notification = $('<div style="' +
+                'background-color: ' + bgColor + ';' +
+                'color: ' + textColor + ';' +
+                'padding: 10px 15px;' +
+                'margin: 10px 0;' +
+                'border-radius: 4px;' +
+                'border: 1px solid ' + (type === 'success' ? '#c3e6cb' : '#f5c6cb') + ';' +
+                '">' + message + '</div>');
+            
+            $('#cw-delivery-charges').after(notification);
+            
+            setTimeout(function() {
+                notification.fadeOut(300, function() {
+                    $(this).remove();
+                });
+            }, 4000);
+        }
+    });
+    </script>
 
     <style>
     .cw-varieties-section {
@@ -1499,6 +1613,8 @@ function custom_woocommerce_get_product_for_edit()
     $varieties_data = get_post_meta($product_id, '_cj_varieties', true);
     $gallery_ids = $product->get_gallery_image_ids();
     $video_ids = get_post_meta($product_id, '_product_video_ids', true);
+    $delivery_charges = get_post_meta($product_id, '_cj_delivery_charges', true);
+    $delivery_eta = get_post_meta($product_id, '_cj_delivery_eta', true);
     
     $varieties = [];
     if (!empty($varieties_data) && is_array($varieties_data)) {
@@ -1548,7 +1664,9 @@ function custom_woocommerce_get_product_for_edit()
         'image' => wp_get_attachment_image_url($product->get_image_id(), 'medium'),
         'varieties' => $varieties,
         'gallery_images' => $gallery_images,
-        'videos' => $videos
+        'videos' => $videos,
+        'delivery_charges' => $delivery_charges,
+        'delivery_eta' => $delivery_eta
     ]);
 }
 add_action('wp_ajax_cw_get_product_for_edit', 'custom_woocommerce_get_product_for_edit');
@@ -1744,6 +1862,22 @@ function custom_woocommerce_update_product()
         delete_post_meta($product_id, '_cj_varieties');
     }
 
+    // Handle delivery charges and ETA
+    $delivery_charges = isset($_POST['delivery_charges']) ? sanitize_text_field($_POST['delivery_charges']) : '';
+    $delivery_eta = isset($_POST['delivery_eta']) ? sanitize_text_field($_POST['delivery_eta']) : '';
+    
+    if (!empty($delivery_charges)) {
+        update_post_meta($product_id, '_cj_delivery_charges', $delivery_charges);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_charges');
+    }
+    
+    if (!empty($delivery_eta)) {
+        update_post_meta($product_id, '_cj_delivery_eta', $delivery_eta);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_eta');
+    }
+
     wp_send_json_success(['message' => 'Product updated successfully.']);
 }
 add_action('wp_ajax_cw_update_product', 'custom_woocommerce_update_product');
@@ -1805,6 +1939,145 @@ function custom_woocommerce_get_categories()
     wp_send_json_success($cat_list);
 }
 add_action('wp_ajax_cw_get_categories', 'custom_woocommerce_get_categories');
+
+/**
+ * Frontend AJAX: Save Delivery Charges and ETA
+ */
+function custom_woocommerce_save_delivery_frontend() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cw_delivery_frontend_nonce')) {
+        wp_send_json_error(['message' => 'Security check failed']);
+    }
+
+    // Get product ID
+    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    
+    if (!$product_id) {
+        wp_send_json_error(['message' => 'Product ID not provided']);
+    }
+
+    // Check permissions - user must be able to edit products
+    if (!current_user_can('edit_product', $product_id)) {
+        wp_send_json_error(['message' => 'Permission denied']);
+    }
+
+    // Get and sanitize data
+    $delivery_charges = isset($_POST['delivery_charges']) ? sanitize_text_field($_POST['delivery_charges']) : '';
+    $delivery_eta = isset($_POST['delivery_eta']) ? sanitize_text_field($_POST['delivery_eta']) : '';
+
+    // Save delivery charges
+    if (!empty($delivery_charges)) {
+        update_post_meta($product_id, '_cj_delivery_charges', $delivery_charges);
+    }
+
+    // Save delivery ETA
+    if (!empty($delivery_eta)) {
+        update_post_meta($product_id, '_cj_delivery_eta', $delivery_eta);
+    }
+
+    wp_send_json_success([
+        'message' => 'Delivery information saved successfully',
+        'charges' => get_post_meta($product_id, '_cj_delivery_charges', true),
+        'eta' => get_post_meta($product_id, '_cj_delivery_eta', true),
+    ]);
+}
+add_action('wp_ajax_cw_save_delivery_frontend', 'custom_woocommerce_save_delivery_frontend');
+
+/**
+ * Frontend AJAX: Save Delivery Charges and ETA from Variety Editor Modal
+ */
+function custom_woocommerce_save_delivery_details_frontend() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cw_variety_editor_nonce')) {
+        wp_send_json_error(['message' => 'Security check failed']);
+    }
+
+    // Get product ID
+    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    
+    if (!$product_id) {
+        wp_send_json_error(['message' => 'Product ID not provided']);
+    }
+
+    // Check permissions
+    if (!current_user_can('edit_product', $product_id)) {
+        wp_send_json_error(['message' => 'Permission denied']);
+    }
+
+    // Get and sanitize data
+    $delivery_charges = isset($_POST['delivery_charges']) ? sanitize_text_field($_POST['delivery_charges']) : '';
+    $delivery_eta = isset($_POST['delivery_eta']) ? sanitize_text_field($_POST['delivery_eta']) : '';
+
+    // Save delivery charges
+    if (!empty($delivery_charges)) {
+        update_post_meta($product_id, '_cj_delivery_charges', $delivery_charges);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_charges');
+    }
+
+    // Save delivery ETA
+    if (!empty($delivery_eta)) {
+        update_post_meta($product_id, '_cj_delivery_eta', $delivery_eta);
+    } else {
+        delete_post_meta($product_id, '_cj_delivery_eta');
+    }
+
+    wp_send_json_success([
+        'message' => 'Delivery information saved successfully',
+        'charges' => get_post_meta($product_id, '_cj_delivery_charges', true),
+        'eta' => get_post_meta($product_id, '_cj_delivery_eta', true),
+    ]);
+}
+add_action('wp_ajax_cw_save_delivery_details_frontend', 'custom_woocommerce_save_delivery_details_frontend');
+
+/**
+ * Frontend AJAX: Get Product Varieties and Delivery Details for Edit Modal
+ */
+function custom_woocommerce_get_product_varieties_edit() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'cw_variety_editor_nonce')) {
+        wp_send_json_error(['message' => 'Security check failed']);
+    }
+
+    // Get product ID
+    $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+    
+    if (!$product_id) {
+        wp_send_json_error(['message' => 'Product ID not provided']);
+    }
+
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        wp_send_json_error(['message' => 'Product not found']);
+    }
+
+    // Get varieties
+    $varieties_data = get_post_meta($product_id, '_cj_varieties', true);
+    $varieties = [];
+    if (!empty($varieties_data) && is_array($varieties_data)) {
+        foreach ($varieties_data as $variety) {
+            $varieties[] = [
+                'color_name' => $variety['color_name'] ?? '',
+                'price' => $variety['price'] ?? 0,
+                'image_id' => $variety['image_id'] ?? 0,
+                'image_url' => !empty($variety['image_id']) ? wp_get_attachment_image_url($variety['image_id'], 'medium') : ''
+            ];
+        }
+    }
+
+    // Get delivery information
+    $delivery_charges = get_post_meta($product_id, '_cj_delivery_charges', true);
+    $delivery_eta = get_post_meta($product_id, '_cj_delivery_eta', true);
+
+    wp_send_json_success([
+        'product_name' => $product->get_name(),
+        'varieties' => $varieties,
+        'delivery_charges' => $delivery_charges,
+        'delivery_eta' => $delivery_eta
+    ]);
+}
+add_action('wp_ajax_cw_get_product_varieties_edit', 'custom_woocommerce_get_product_varieties_edit');
+
 /**
  * Custom Product Display - CJ Dropshipping Style
  * Shortcode: [cw_product_display]
